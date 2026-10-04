@@ -1,0 +1,12 @@
+# Local PostgreSQL for UPSHIFT. Then: DATABASE_URL=postgres://upshift:upshift@localhost:5432/upshift
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: upshift
+      POSTGRES_PASSWORD: upshift
+      POSTGRES_DB: upshift
+    ports: ["5432:5432"]
+    volumes: [upshift-db:/var/lib/postgresql/data]
+volumes:
+  upshift-db:

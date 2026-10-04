@@ -14,6 +14,18 @@ type F = {
   requirementId: string | null;
 };
 
+/**
+ * Checks that were folded into a failing requirement finding (its evidence
+ * lists them as "FAIL: <title>"). Selecting both would repeat the same fix.
+ */
+export function redundantCheckIds<T extends Pick<F, "id" | "title" | "evidence" | "status" | "requirementId" | "method">>(findings: T[]): Set<string> {
+  const folded = new Set<string>();
+  for (const f of findings)
+    if (f.requirementId && f.method !== "model" && f.method !== "human" && f.status === "verified_fail")
+      for (const line of f.evidence.split("\n")) if (line.startsWith("FAIL: ")) folded.add(line.slice(6).split(":")[0].trim());
+  return new Set(findings.filter((f) => !f.requirementId && folded.has(f.title)).map((f) => f.id));
+}
+
 const PRIORITY_RANK: Record<string, number> = { must: 0, should: 1, could: 2 };
 
 /**

@@ -313,9 +313,9 @@ function RequirementRow({ r, ctx }: { r: Requirement; ctx: Ctx }) {
     );
 
   return (
-    <li className={`group flex items-start gap-3 py-3 ${r.status === "rejected" ? "opacity-50" : ""}`}>
-      <span className={`mt-0.5 w-12 shrink-0 font-mono text-[11px] uppercase ${priorityTone}`}>{r.priority}</span>
-      <div className="min-w-0 flex-1">
+    <li className={`group flex flex-wrap items-start gap-x-3 gap-y-2 py-3 sm:flex-nowrap ${r.status === "rejected" ? "opacity-50" : ""}`}>
+      <span className={`mt-0.5 w-11 shrink-0 font-mono text-[11px] uppercase ${priorityTone}`}>{r.priority}</span>
+      <div className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] sm:basis-auto">
         <p className={`text-sm leading-relaxed ${r.status === "rejected" ? "line-through" : "text-ink"}`}>{r.text}</p>
         {r.acceptance ? <p className="mt-0.5 text-xs text-ink-3">Check: {r.acceptance}</p> : suggested || r.status === "rejected" ? null : <p className="mt-0.5 text-xs text-ink-3/70">No check defined yet.</p>}
         <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -328,7 +328,7 @@ function RequirementRow({ r, ctx }: { r: Requirement; ctx: Ctx }) {
           ) : null}
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity md:opacity-60 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+      <div className="ml-14 flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:ml-0 md:opacity-60 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
         {suggested ? (
           <>
             <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => update({ status: "confirmed" })} aria-label={`Accept: ${r.text}`}>

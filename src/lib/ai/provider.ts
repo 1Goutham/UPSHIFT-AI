@@ -63,6 +63,12 @@ export function providerStatus(): ProviderStatus {
 }
 
 let client: Anthropic | null = null;
+let testFetch: typeof fetch | undefined;
+/** Tests only: route SDK HTTP calls through a stub. */
+export function __setProviderFetchForTests(f: typeof fetch | undefined) {
+  testFetch = f;
+  client = null;
+}
 function getClient() {
   if (!process.env.ANTHROPIC_API_KEY) throw new ProviderNotConfiguredError();
   client ??= new Anthropic({
@@ -70,7 +76,8 @@ function getClient() {
     // Explicit so an unrelated ANTHROPIC_BASE_URL in the host environment is never picked up.
     baseURL: process.env.UPSHIFT_ANTHROPIC_BASE_URL || "https://api.anthropic.com",
     timeout: 180_000,
-    maxRetries: 2,
+    maxRetries: testFetch ? 0 : 2,
+    ...(testFetch ? { fetch: testFetch } : {}),
   });
   return client;
 }
@@ -99,12 +106,15 @@ export async function generateStructured<T extends z.ZodType>(req: StructuredReq
   let servedModel = status.model;
 
   try {
-    const response = await anthropic.beta.messages.parse({
+    // create() rather than parse(): stop_reason must be checked before any
+    // parsing, so refusals and truncation get their own clear errors.
+    const { type, schema } = betaZodOutputFormat(req.schema);
+    const response = await anthropic.beta.messages.create({
       model: status.model,
       max_tokens: req.maxTokens ?? 16000,
       system: req.system,
       thinking: { type: "adaptive" },
-      output_config: { effort: req.effort ?? "medium", format: betaZodOutputFormat(req.schema) },
+      output_config: { effort: req.effort ?? "medium", format: { type, schema } },
       messages: [{ role: "user", content: req.content }],
       ...(status.fallbacks ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
     });
@@ -119,10 +129,18 @@ export async function generateStructured<T extends z.ZodType>(req: StructuredReq
     if (response.stop_reason === "max_tokens") {
       throw new ProviderError("The model ran out of output space before finishing. Try a smaller input.", 502);
     }
-    const parsed = response.parsed_output;
-    if (parsed == null) throw new ProviderError("The model returned output that did not match the expected structure.", 502);
-    // Belt and braces: validate again with our own schema before anything is stored.
-    const check = req.schema.safeParse(parsed);
+    const text = response.content
+      .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+    let raw: unknown;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      throw new ProviderError("The model returned output that was not valid JSON.", 502);
+    }
+    // Validate with our own schema before anything is stored.
+    const check = req.schema.safeParse(raw);
     if (!check.success) throw new ProviderError("The model returned output that did not match the expected structure.", 502);
 
     await recordUsage(req, servedModel, inputTokens, outputTokens, Date.now() - started, true);

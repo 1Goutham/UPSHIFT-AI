@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, ChevronRight, FileText, Globe, Image as ImageIcon, RotateCw, Upload, Wand2 } from "lucide-react";
 import type { Artifact, Evaluation, Finding, Prompt } from "@/lib/db/schema";
 import { isFailing, isPassing } from "@/lib/engines/taxonomy";
+import { redundantCheckIds } from "@/lib/engines/improve";
 import { api, Asterisk, CopyButton, Empty, ErrorNote, Field, MethodTag, SeverityTag, Spinner, StatusMark, useToast } from "../ui";
 import { fmtTime, latestEvaluation, type Ctx } from "./types";
 
@@ -331,7 +332,11 @@ function Results({ ctx, artifact, evaluation, findings }: { ctx: Ctx; artifact: 
   const s = evaluation.summary;
   const failing = findings.filter((f) => isFailing(f.status));
   const [filter, setFilter] = useState<Filter>(failing.length ? "issues" : "requirements");
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(failing.filter((f) => f.status === "verified_fail" || ["critical", "high", "medium"].includes(f.severity)).map((f) => f.id)));
+  // Pre-select proven failures and serious likely issues, minus checks already folded into a requirement.
+  const [selected, setSelected] = useState<Set<string>>(() => {
+    const redundant = redundantCheckIds(findings);
+    return new Set(failing.filter((f) => !redundant.has(f.id) && (f.status === "verified_fail" || ["critical", "high", "medium"].includes(f.severity))).map((f) => f.id));
+  });
 
   const reqFindings = findings.filter((f) => f.checkKey.startsWith("req:"));
   const total = evaluation.requirementSnapshot.length;

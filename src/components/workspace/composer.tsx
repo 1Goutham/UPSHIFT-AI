@@ -29,8 +29,7 @@ export function Composer({ ctx }: { ctx: Ctx }) {
     try {
       if (mode === "requirement") {
         await api(`/api/projects/${ws.project.id}/requirements`, { method: "POST", json: { text: value } });
-        toast("Requirement added to the checklist.");
-        setTab("brief");
+        toast("Requirement added and confirmed in the Brief checklist.");
       } else {
         await api(`/api/projects/${ws.project.id}/prompts/${target!.id}/refine`, { method: "POST", json: { instruction: value } });
         toast("Prompt refined. Saved as a new version.");

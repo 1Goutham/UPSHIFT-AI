@@ -153,3 +153,27 @@ describe("correction prompts", () => {
     expect(out).toContain("Do not redesign");
   });
 });
+
+describe("regressions", () => {
+  it("dedupes goal and prompt that repeat each other", () => {
+    const { requirements } = deterministicBrief({
+      goal: "Make my portfolio premium, modern and interactive so recruiters remember me.",
+      prompt: "Make my portfolio premium, modern and interactive.",
+      contentType: "text",
+    });
+    expect(requirements.filter((r) => r.origin === "explicit")).toHaveLength(1);
+  });
+  it("does not call a small static page client-rendered", () => {
+    const html = `<html><body><h1>Ana</h1><p>Short page with a bit of text here.</p><script>1</script></body></html>`;
+    expect(runHtmlChecks(html, "https://x.test", 200).facts.clientRendered).toBe(false);
+    expect(runHtmlChecks(`<html><body><div id="root"></div><script src="a.js"></script></body></html>`, "https://x.test", 200).facts.clientRendered).toBe(true);
+  });
+  it("folds checks already covered by a failing requirement", async () => {
+    const { redundantCheckIds } = await import("../improve");
+    const fs = [
+      { id: "r", title: "No JS errors", evidence: "FAIL: No JavaScript errors on load: 2 error(s)", status: "verified_fail", requirementId: "req1", method: "browser" },
+      { id: "c", title: "No JavaScript errors on load", evidence: "", status: "verified_fail", requirementId: null, method: "browser" },
+    ];
+    expect([...redundantCheckIds(fs)]).toEqual(["c"]);
+  });
+});

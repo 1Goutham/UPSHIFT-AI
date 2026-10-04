@@ -90,7 +90,7 @@ export function validateUrlShape(raw: string): URL {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new UnsafeUrlError("Only http and https URLs can be analysed.");
   if (url.username || url.password) throw new UnsafeUrlError("URLs with embedded credentials are not accepted.");
-  if (!ALLOWED_PORTS.has(url.port)) throw new UnsafeUrlError("Only standard web ports (80, 443, 8080, 8443) are allowed.");
+  if (!ALLOWED_PORTS.has(url.port) && !allowPrivate()) throw new UnsafeUrlError("Only standard web ports (80, 443, 8080, 8443) are allowed.");
   const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
   if (!allowPrivate()) {
     if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal") || host.endsWith(".local"))

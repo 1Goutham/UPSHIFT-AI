@@ -132,12 +132,15 @@ const GAP_QUESTIONS: Record<string, { question: string; why: string }> = {
 
 export function deterministicBrief(input: { goal: string; prompt: string; contentType: ContentType }) {
   const source = [input.goal, input.prompt].filter(Boolean).join("\n");
-  const seen = new Set<string>();
   const explicit: RequirementCandidate[] = [];
-  for (const clause of splitClauses(source)) {
-    const key = clause.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
+  // Goal and prompt often repeat each other; keep the fuller wording once.
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+  const clauses = [...new Set(splitClauses(source))].sort((a, b) => b.length - a.length);
+  const kept: string[] = [];
+  for (const c of clauses) if (!kept.some((k) => norm(k).includes(norm(c)))) kept.push(c);
+  const order = splitClauses(source);
+  kept.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  for (const clause of kept) {
     const category = categorise(clause);
     explicit.push({
       category,

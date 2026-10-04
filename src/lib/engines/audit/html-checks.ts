@@ -278,7 +278,9 @@ export function runHtmlChecks(html: string, finalUrl: string, httpStatus: number
 
   const bytes = Buffer.byteLength(html);
   const scripts = root.querySelectorAll("script").length;
-  const clientRendered = text.length < 200 && scripts > 0;
+  // An app shell: scripts plus an empty mount node, or almost no text at all.
+  const mount = root.querySelector("#root, #app, #__next, #__nuxt, #svelte, [data-reactroot]");
+  const clientRendered = scripts > 0 && (text.length < 40 || (!!mount && mount.text.trim().length < 20 && text.length < 400));
   d({
     checkKey: "check:html_weight",
     title: "HTML document size",

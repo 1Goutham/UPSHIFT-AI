@@ -2,7 +2,7 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { authed, ApiError, parseBody } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
-import { buildCorrectionPrompt, prioritise } from "@/lib/engines/improve";
+import { buildCorrectionPrompt, prioritise, redundantCheckIds } from "@/lib/engines/improve";
 import { getRequirements, logEvent, requireProject, touchProject } from "@/lib/repo/projects";
 
 const Body = z.object({
@@ -29,7 +29,8 @@ export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   const selectedRaw = all.filter((f) => body.findingIds.includes(f.id));
   if (!selectedRaw.length) throw new ApiError(400, "None of the selected issues belong to this evaluation.");
   const priorities = new Map((await getRequirements(project.id)).map((r) => [r.id, r.priority]));
-  const selected = prioritise(selectedRaw, priorities);
+  const redundant = redundantCheckIds(selectedRaw);
+  const selected = prioritise(selectedRaw.filter((f) => !redundant.has(f.id)), priorities);
   const skipped = selectedRaw.length - selected.length;
   if (!selected.length) throw new ApiError(400, "Selected items are not failing, so there is nothing to correct.");
   const content = buildCorrectionPrompt({
