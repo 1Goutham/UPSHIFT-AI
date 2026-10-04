@@ -1,0 +1,451 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/*  Tokens                                                             */
+/*  Black ground, white ink, one lime accent. Status colours are the   */
+/*  only other hues and always come with a shape, never colour alone.  */
+/* ------------------------------------------------------------------ */
+:root {
+  --bg: #000000;
+  --panel: #0b0b0b;
+  --raise: #141414;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.22);
+  --ink: #ffffff;
+  --ink-2: rgba(255, 255, 255, 0.72);
+  --ink-3: rgba(255, 255, 255, 0.5);
+  --accent: #9dff50;
+  --accent-ink: #000000;
+  --pass: #9dff50;
+  --fail: #ff6b57;
+  --warn: #f5c451;
+  --focus: rgba(157, 255, 80, 0.55);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --panel: #f6f6f4;
+  --raise: #ececea;
+  --line: rgba(0, 0, 0, 0.1);
+  --line-strong: rgba(0, 0, 0, 0.25);
+  --ink: #000000;
+  --ink-2: rgba(0, 0, 0, 0.72);
+  --ink-3: rgba(0, 0, 0, 0.52);
+  --accent: #9dff50;
+  --accent-ink: #000000;
+  --pass: #2f8a00;
+  --fail: #c8321d;
+  --warn: #9a6a00;
+  --focus: rgba(47, 138, 0, 0.5);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-raise: var(--raise);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-pass: var(--pass);
+  --color-fail: var(--fail);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-anonymous-pro), ui-monospace, monospace;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100dvh;
+}
+
+::selection {
+  background: #9dff50;
+  color: #000;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Bracket headings and links: "[ label ]". The brackets ease         */
+/*  outward and tint lime on hover, as on the portfolio.               */
+/* ------------------------------------------------------------------ */
+.bracket {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.bracket-l,
+.bracket-r {
+  display: inline-block;
+  color: var(--ink-3);
+  transition: transform 0.4s var(--ease-out-expo), color 0.3s ease;
+}
+.bracket-t {
+  margin: 0 0.5ch;
+  color: var(--ink);
+  transition: color 0.3s ease;
+}
+a.bracket:hover .bracket-l,
+button.bracket:hover .bracket-l,
+.bracket-hover:hover .bracket-l,
+a.bracket:focus-visible .bracket-l,
+button.bracket:focus-visible .bracket-l {
+  transform: translateX(-4px);
+  color: var(--accent);
+}
+a.bracket:hover .bracket-r,
+button.bracket:hover .bracket-r,
+.bracket-hover:hover .bracket-r,
+a.bracket:focus-visible .bracket-r,
+button.bracket:focus-visible .bracket-r {
+  transform: translateX(4px);
+  color: var(--accent);
+}
+:root[data-theme="light"] a.bracket:hover .bracket-l,
+:root[data-theme="light"] a.bracket:hover .bracket-r,
+:root[data-theme="light"] button.bracket:hover .bracket-l,
+:root[data-theme="light"] button.bracket:hover .bracket-r {
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Buttons                                                            */
+/* ------------------------------------------------------------------ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  height: 2.25rem;
+  padding: 0 0.9rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    transform 0.35s var(--ease-out-expo),
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease,
+    opacity 0.2s ease;
+  will-change: transform;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn:not(:disabled):active {
+  transform: scale(0.97);
+  transition-duration: 0.08s;
+}
+.btn-primary {
+  background: var(--ink);
+  color: var(--bg);
+}
+.btn-primary:not(:disabled):hover {
+  transform: translateY(-1px);
+  background: color-mix(in oklab, var(--ink) 88%, var(--bg));
+}
+.btn-accent {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.btn-accent:not(:disabled):hover {
+  transform: translateY(-1px);
+  background: #b4ff7a;
+}
+.btn-ghost {
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+}
+.btn-ghost:not(:disabled):hover {
+  border-color: var(--ink-2);
+  background: var(--raise);
+}
+.btn-quiet {
+  color: var(--ink-2);
+  padding: 0 0.5rem;
+}
+.btn-quiet:not(:disabled):hover {
+  color: var(--ink);
+  background: var(--raise);
+}
+.btn-danger {
+  border: 1px solid color-mix(in oklab, var(--fail) 60%, transparent);
+  color: var(--fail);
+}
+.btn-danger:not(:disabled):hover {
+  background: color-mix(in oklab, var(--fail) 14%, transparent);
+}
+.btn-sm {
+  height: 1.875rem;
+  padding: 0 0.65rem;
+  font-size: 0.75rem;
+}
+
+/* Arrow nudge on hover of its parent. */
+.nudge {
+  transition: transform 0.35s var(--ease-out-expo);
+}
+.group:hover .nudge {
+  transform: translate(2px, -2px);
+}
+.nudge-x {
+  transition: transform 0.35s var(--ease-out-expo);
+}
+.group:hover .nudge-x {
+  transform: translateX(3px);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Fields: underline-only, with a line that draws in on focus.        */
+/*  Anything you can edit looks like this; nothing else does.          */
+/* ------------------------------------------------------------------ */
+.field {
+  position: relative;
+  display: block;
+}
+.field-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 0.25rem;
+  transition: color 0.25s ease;
+}
+.field:focus-within .field-label {
+  color: var(--ink);
+}
+.field-input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  padding: 0.45rem 0;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  outline: none;
+  border-radius: 0;
+  transition: border-color 0.25s ease;
+}
+textarea.field-input {
+  resize: vertical;
+  min-height: 2.5rem;
+}
+select.field-input {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 1.25rem;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position: calc(100% - 7px) 55%, calc(100% - 3px) 55%;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+}
+select.field-input option {
+  background: var(--panel);
+  color: var(--ink);
+}
+.field-input::placeholder {
+  color: var(--ink-3);
+  opacity: 0.8;
+}
+.field-input:focus-visible {
+  outline: none;
+}
+.field-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.5s var(--ease-out-expo);
+  pointer-events: none;
+}
+.field:focus-within .field-line {
+  transform: scaleX(1);
+}
+
+/* Boxed editor for long text (prompts). */
+.editor {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.25s ease;
+}
+.editor:focus {
+  border-color: var(--line-strong);
+}
+
+/* Read-only prompt output. */
+.prompt-out {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Labels                                                             */
+/* ------------------------------------------------------------------ */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.25rem;
+  padding: 0 0.4rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+/* AI suggestion marker: asterisk + dashed edge. */
+.suggested {
+  border: 1px dashed var(--line-strong);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tabs with a sliding underline (from the portfolio nav)             */
+/* ------------------------------------------------------------------ */
+.tabs-line {
+  transition: left 0.45s var(--ease-out-expo), width 0.45s var(--ease-out-expo);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Motion                                                             */
+/* ------------------------------------------------------------------ */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise-in {
+  animation: rise-in 0.5s var(--ease-out-expo) both;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin-star {
+  animation: spin 2.4s linear infinite;
+}
+@keyframes scan {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.progress-scan {
+  animation: scan 1.6s var(--ease-out-expo) infinite;
+}
+.row-hover {
+  transition: background-color 0.2s ease;
+}
+.row-hover:hover {
+  background: var(--panel);
+}
+
+/* Loop strip on the landing page: a marker fills behind the word. */
+.loop-step {
+  position: relative;
+  isolation: isolate;
+  padding: 0 0.15em;
+  transition: color 0.3s ease;
+  cursor: default;
+}
+.loop-step::before {
+  content: "";
+  position: absolute;
+  inset: 0.05em -0.05em;
+  z-index: -1;
+  background: var(--accent);
+  border-radius: 2px;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.45s var(--ease-out-expo);
+}
+.loop-step:hover {
+  color: #000;
+}
+.loop-step:hover::before {
+  transform: scaleX(1);
+}
+
+/* Faint film grain for the landing ground. */
+.grain {
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
