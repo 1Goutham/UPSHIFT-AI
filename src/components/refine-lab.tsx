@@ -30,6 +30,7 @@ export function RefineLab({ modelReady, canSave }: { modelReady: boolean; canSav
   const [mode, setMode] = useState<Mode>("quick");
   const [save, setSave] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [live, setLive] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ original: string; r: Result } | null>(null);
   const [view, setView] = useState<"after" | "diff">("after");
@@ -53,8 +54,9 @@ export function RefineLab({ modelReady, canSave }: { modelReady: boolean; canSav
     if (!prompt.trim()) return setError("Add a prompt first.");
     setBusy(true);
     setError("");
+    setLive("");
     try {
-      const r = await api<Result>("/api/refine", { method: "POST", json: { prompt, platform, mode, save: save && canSave, source: "web" } });
+      const r = await streamRefine({ prompt, platform, mode, save: save && canSave, source: "web" }, setLive);
       setResult({ original: prompt, r });
       setView("after");
       if (r.id) loadHistory();
@@ -62,6 +64,7 @@ export function RefineLab({ modelReady, canSave }: { modelReady: boolean; canSav
       setError((err as Error).message);
     } finally {
       setBusy(false);
+      setLive("");
     }
   };
 
@@ -133,6 +136,13 @@ export function RefineLab({ modelReady, canSave }: { modelReady: boolean; canSav
         </div>
         {error ? <ErrorNote message={error} onRetry={prompt.trim() ? refine : undefined} /> : null}
       </section>
+
+      {busy && live ? (
+        <section className="space-y-2" aria-label="Refining" aria-busy="true">
+          <p className="text-sm text-ink-3">Refining</p>
+          <div className="prompt-out max-h-[420px] overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-panel p-4 text-sm text-ink-2">{live}</div>
+        </section>
+      ) : null}
 
       {r && result ? (
         <section className="rise-in space-y-4" aria-label="Refined prompt">
@@ -273,4 +283,37 @@ export function RefineLab({ modelReady, canSave }: { modelReady: boolean; canSav
       ) : null}
     </div>
   );
+}
+
+/** POST /api/refine with streaming: shows the refined prompt as it is written, resolves with the validated result. */
+async function streamRefine(body: Record<string, unknown>, onLive: (text: string) => void): Promise<Result> {
+  let res: Response;
+  try {
+    res = await fetch("/api/refine", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, stream: true }) });
+  } catch {
+    throw new Error("Network error. Check your connection and retry.");
+  }
+  if (!res.ok || !res.body) {
+    const data = await res.json().catch(() => null);
+    if (res.status === 401) window.location.href = "/login";
+    throw new Error(data?.error ?? `Request failed (${res.status}).`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (value) buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      const ev = JSON.parse(line) as { type: string; refined?: string; result?: Result; error?: string };
+      if (ev.type === "delta" && ev.refined) onLive(ev.refined);
+      else if (ev.type === "done" && ev.result) return ev.result;
+      else if (ev.type === "error") throw new Error(ev.error ?? "Couldn't refine this prompt right now. Try again.");
+    }
+    if (done) throw new Error("The connection dropped while refining. Try again.");
+  }
 }

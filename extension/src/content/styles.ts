@@ -22,7 +22,9 @@ button:focus-visible, textarea:focus-visible, .out:focus-visible, summary:focus-
 .fab { position: fixed; z-index: 2147483646; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
   background: var(--surface); color: var(--ink); box-shadow: var(--shadow); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
   transition: transform .35s cubic-bezier(.2,.9,.3,1.2), opacity .2s; }
+.fab { touch-action: none; cursor: pointer; }
 .fab:hover { transform: scale(1.08); }
+.fab.dragging { cursor: grabbing; transform: scale(1.12); transition: none; box-shadow: 0 0 0 .5px rgba(0,0,0,.4), 0 16px 36px -8px rgba(0,0,0,.55); }
 .fab:active { transform: scale(.94); }
 .fab .badge { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--btn); color: var(--btnInk);
   font-size: 10px; font-weight: 600; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
@@ -64,6 +66,8 @@ button:focus-visible, textarea:focus-visible, .out:focus-visible, summary:focus-
 
 .out { width: 100%; min-height: 120px; max-height: 280px; overflow: auto; resize: none; padding: 12px 14px; border-radius: 12px; border: 0;
   background: var(--fill2); color: var(--ink); font: 13.5px/1.55 inherit; font-family: inherit; white-space: pre-wrap; }
+.out.live::after { content: ""; display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: -2px; background: currentColor; animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
 textarea.out { outline: none; resize: vertical; box-shadow: inset 0 0 0 1.5px rgba(10,132,255,.6); }
 .diff .del { color: var(--del); text-decoration: line-through; opacity: .8; }
 .diff .add { background: var(--addBg); border-radius: 3px; }

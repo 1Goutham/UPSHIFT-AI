@@ -32,9 +32,11 @@ export type RefineResult = {
   checks: { originalWords: number; refinedWords: number; tooLong: boolean; intent: { terms: number; kept: number; missing: string[]; ratio: number } };
 };
 
-export type Msg =
-  | { type: "refine"; prompt: string; platform: PlatformId; mode: Mode }
-  | { type: "open-options" }
-  | { type: "toggle" };
+export type Msg = { type: "open-options" } | { type: "toggle" };
+
+/** Refinement runs over a port named "refine": one request in, deltas then one result out. */
+export const REFINE_PORT = "refine";
+export type RefineRequest = { prompt: string; platform: PlatformId; mode: Mode };
+export type RefinePortMsg = { type: "delta"; refined: string } | { type: "result"; reply: RefineReply };
 
 export type RefineReply = { ok: true; result: RefineResult } | { ok: false; error: string; code?: "not_connected" | "no_permission" | "provider" | "network" | "invalid" | "auth" };

@@ -3,7 +3,7 @@ import { wordDiff } from "../../../src/lib/refine/intent-check";
 import type { Mode } from "../../../src/lib/refine/platforms";
 import type { PlatformAdapter } from "../adapters/types";
 import { getSettings, saveSettings } from "../services/settings";
-import type { Msg, RefineReply, RefineResult } from "../services/types";
+import { REFINE_PORT, type Msg, type RefinePortMsg, type RefineReply, type RefineRequest, type RefineResult } from "../services/types";
 import { closeIcon, h, mark } from "../lib/dom";
 import { CSS } from "./styles";
 
@@ -17,7 +17,7 @@ declare const __DEV__: boolean;
 
 type State =
   | { view: "analyse" }
-  | { view: "loading" }
+  | { view: "loading"; partial?: string }
   | { view: "result"; result: RefineResult; original: string; replaced: boolean; editing: boolean; showDiff: boolean; note?: string }
   | { view: "error"; message: string; connect?: boolean };
 
@@ -46,6 +46,12 @@ export class Overlay {
   private alive = true;
   private observer: MutationObserver | null = null;
   private watchdog = 0;
+  /** Where the user dragged the button, as fractions of the viewport; null = docked to the prompt box. */
+  private pos: { x: number; y: number } | null = null;
+  private drag: { id: number; dx: number; dy: number; sx: number; sy: number; moved: boolean } | null = null;
+  private suppressClick = false;
+  private liveEl: HTMLElement | null = null;
+  private port: chrome.runtime.Port | null = null;
   private listeners: [EventTarget, string, EventListener, AddEventListenerOptions | boolean][] = [];
 
   constructor(private adapter: PlatformAdapter) {
@@ -59,7 +65,12 @@ export class Overlay {
       this.shadow.append(h("style", {}, CSS));
     }
     this.shadow.append(this.root);
-    this.fab = h("button", { class: "fab", type: "button", "aria-label": "UPSHIFT: refine this prompt (Alt+U)", title: "UPSHIFT  (Alt+U)", onclick: () => this.toggle() }, mark(15), this.badge);
+    this.fab = h("button", { class: "fab", type: "button", "aria-label": "UPSHIFT: refine this prompt (Alt+U)", title: "UPSHIFT  (Alt+U)", onclick: () => this.onFabClick() }, mark(15), this.badge);
+    this.fab.addEventListener("pointerdown", (e) => this.dragStart(e));
+    this.fab.addEventListener("pointermove", (e) => this.dragMove(e));
+    this.fab.addEventListener("pointerup", (e) => this.dragEnd(e));
+    this.fab.addEventListener("pointercancel", () => (this.drag = null));
+    this.fab.addEventListener("dblclick", () => this.setPos(null));
     this.fab.hidden = true;
     this.root.append(this.fab);
   }
@@ -68,6 +79,7 @@ export class Overlay {
     const s = await getSettings();
     this.mode = s.mode;
     this.liveHints = s.liveHints;
+    this.pos = await loadPos();
     document.documentElement.append(this.host);
     this.applyTheme();
     this.track();
@@ -91,6 +103,7 @@ export class Overlay {
     this.observer?.disconnect();
     clearInterval(this.watchdog);
     cancelAnimationFrame(this.raf);
+    this.port?.disconnect();
     for (const [t, type, fn, opts] of this.listeners) t.removeEventListener(type, fn, opts);
     this.listeners = [];
     this.host.remove();
@@ -129,11 +142,79 @@ export class Overlay {
       return;
     }
     this.fab.hidden = false;
-    // Sits on the composer's top edge, right-aligned: clear of the text and the send button.
+    if (!this.drag) {
+      const { x, y } = this.pos ? this.freeSpot() : this.dockSpot(r);
+      this.fab.style.left = `${x}px`;
+      this.fab.style.top = `${y}px`;
+    }
+    if (this.panel) this.placePanel(this.anchor(r));
+  }
+
+  /** Docked: on the composer's top edge, right-aligned, clear of the text and the send button. */
+  private dockSpot(r: DOMRect) {
     const fw = this.fab.offsetWidth || 32;
-    this.fab.style.top = `${Math.max(4, r.top - fw / 2)}px`;
-    this.fab.style.left = `${Math.min(innerWidth - fw - 8, Math.max(8, r.right - fw - 16))}px`;
-    if (this.panel) this.placePanel(r);
+    return { x: Math.min(innerWidth - fw - 8, Math.max(8, r.right - fw - 16)), y: Math.max(4, r.top - fw / 2) };
+  }
+
+  private freeSpot() {
+    const fw = this.fab.offsetWidth || 32;
+    return { x: clamp(this.pos!.x * innerWidth, 8, innerWidth - fw - 8), y: clamp(this.pos!.y * innerHeight, 8, innerHeight - fw - 8) };
+  }
+
+  /** The panel opens next to the button when it was moved, else next to the prompt box. */
+  private anchor(composerRect: DOMRect) {
+    return this.pos ? this.fab.getBoundingClientRect() : composerRect;
+  }
+
+  /* ------------------------------- drag --------------------------------- */
+
+  private dragStart(e: PointerEvent) {
+    if (e.button !== 0) return;
+    const r = this.fab.getBoundingClientRect();
+    this.drag = { id: e.pointerId, dx: e.clientX - r.left, dy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, moved: false };
+    // Capture now, so a quick flick that leaves the small button is still a drag.
+    this.fab.setPointerCapture(e.pointerId);
+  }
+
+  private dragMove(e: PointerEvent) {
+    const d = this.drag;
+    if (!d || e.pointerId !== d.id) return;
+    if (!d.moved) {
+      if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 5) return;
+      d.moved = true;
+      this.fab.classList.add("dragging");
+    }
+    const fw = this.fab.offsetWidth || 32;
+    this.fab.style.left = `${clamp(e.clientX - d.dx, 8, innerWidth - fw - 8)}px`;
+    this.fab.style.top = `${clamp(e.clientY - d.dy, 8, innerHeight - fw - 8)}px`;
+    if (this.panel) this.placePanel(this.fab.getBoundingClientRect());
+  }
+
+  private dragEnd(e: PointerEvent) {
+    const d = this.drag;
+    this.drag = null;
+    if (!d || !d.moved || e.pointerId !== d.id) return;
+    this.fab.classList.remove("dragging");
+    this.suppressClick = true;
+    const r = this.fab.getBoundingClientRect();
+    // Dropped back near its home on the prompt box: dock it again.
+    const home = this.composer ? this.dockSpot(this.composer.getBoundingClientRect()) : null;
+    if (home && Math.hypot(r.left - home.x, r.top - home.y) < 48) this.setPos(null);
+    else this.setPos({ x: r.left / innerWidth, y: r.top / innerHeight });
+  }
+
+  private setPos(pos: { x: number; y: number } | null) {
+    this.pos = pos;
+    savePos(pos);
+    this.track();
+  }
+
+  private onFabClick() {
+    if (this.suppressClick) {
+      this.suppressClick = false;
+      return;
+    }
+    this.toggle();
   }
 
   /** Match the page: light panel on light sites, dark on dark. */
@@ -199,7 +280,7 @@ export class Overlay {
     this.composer = this.adapter.findComposer(document);
     this.panel = h("div", { class: "panel", role: "dialog", "aria-label": "UPSHIFT" }) as HTMLDivElement;
     this.root.append(this.panel);
-    if (this.composer) this.placePanel(this.composer.getBoundingClientRect());
+    if (this.composer) this.placePanel(this.anchor(this.composer.getBoundingClientRect()));
     else Object.assign(this.panel.style, { right: "16px", bottom: "16px" });
     if (this.state.view !== "result") this.state = { view: "analyse" };
     this.render();
@@ -236,12 +317,14 @@ export class Overlay {
   private body(): Node[] {
     if (!this.composer) return [h("p", { class: "title" }, "Click into the prompt box"), h("p", { class: "muted" }, "Then open UPSHIFT again.")];
     switch (this.state.view) {
-      case "loading":
+      case "loading": {
+        // The refined prompt appears as it is written; the result view replaces it when it's complete and validated.
+        this.liveEl = this.state.partial ? h("div", { class: "out live", "aria-label": "Refined prompt so far" }, this.state.partial) : null;
         return [
           h("p", { class: "title", role: "status" }, "Refining"),
-          h("div", { class: "skeleton", "aria-hidden": "true" }, h("span", {}), h("span", {}), h("span", {})),
-          h("p", { class: "muted" }, MODE_HINT[this.mode]),
+          this.liveEl ?? h("div", { class: "skeleton", "aria-hidden": "true" }, h("span", {}), h("span", {}), h("span", {})),
         ];
+      }
       case "error":
         return [
           h("p", { class: "title" }, "Couldn't refine"),
@@ -306,21 +389,51 @@ export class Overlay {
     this.state = { view: "loading" };
     this.fab.setAttribute("data-busy", "");
     this.render();
-    let reply: RefineReply;
-    try {
-      reply = await chrome.runtime.sendMessage({ type: "refine", prompt: text, platform: this.adapter.id, mode: this.mode } satisfies Msg);
-    } catch {
-      reply = { ok: false, code: "network", error: "Couldn't refine this prompt right now. Try again." };
-    }
+    const reply = await this.requestRefine({ prompt: text, platform: this.adapter.id, mode: this.mode }, (partial) => {
+      if (this.state.view !== "loading") return;
+      this.state.partial = partial;
+      if (this.liveEl) {
+        this.liveEl.textContent = partial;
+        this.liveEl.scrollTop = this.liveEl.scrollHeight;
+      } else this.render();
+    });
     this.fab.removeAttribute("data-busy");
-    if (!reply?.ok) {
-      const r = reply as Extract<RefineReply, { ok: false }> | undefined;
-      this.state = { view: "error", message: r?.error ?? "Couldn't refine this prompt right now. Try again.", connect: r?.code === "not_connected" || r?.code === "no_permission" || r?.code === "auth" };
+    this.liveEl = null;
+    if (!reply.ok) {
+      this.state = { view: "error", message: reply.error, connect: reply.code === "not_connected" || reply.code === "no_permission" || reply.code === "auth" };
     } else {
       this.state = { view: "result", result: reply.result, original: text, replaced: false, editing: false, showDiff: false };
     }
     if (this.panel) this.render();
     else this.open();
+  }
+
+  /** One refinement over a port: display-only deltas, then the validated result. */
+  private requestRefine(req: RefineRequest, onDelta: (partial: string) => void): Promise<RefineReply> {
+    const fail: RefineReply = { ok: false, code: "network", error: "Couldn't refine this prompt right now. Try again." };
+    return new Promise((resolve) => {
+      let port: chrome.runtime.Port;
+      try {
+        this.port?.disconnect();
+        port = this.port = chrome.runtime.connect({ name: REFINE_PORT });
+      } catch {
+        return resolve(fail);
+      }
+      let settled = false;
+      const finish = (r: RefineReply) => {
+        if (settled) return;
+        settled = true;
+        if (this.port === port) this.port = null;
+        port.disconnect();
+        resolve(r);
+      };
+      port.onMessage.addListener((m: RefinePortMsg) => {
+        if (m.type === "delta" && typeof m.refined === "string") onDelta(m.refined);
+        else if (m.type === "result") finish(m.reply ?? fail);
+      });
+      port.onDisconnect.addListener(() => finish(fail));
+      port.postMessage(req);
+    });
   }
 
   private result(st: Extract<State, { view: "result" }>): Node[] {
@@ -433,5 +546,30 @@ export class Overlay {
     const s = await getSettings();
     await saveSettings({ disabledHosts: [...new Set([...s.disabledHosts, location.hostname])] });
     this.destroy();
+  }
+}
+
+const clamp = (n: number, lo: number, hi: number) => Math.min(Math.max(n, lo), Math.max(lo, hi));
+const POS_KEY = "fabPos";
+
+/** Button position per site, on this device only. */
+async function loadPos(): Promise<{ x: number; y: number } | null> {
+  try {
+    const all = ((await chrome.storage.local.get(POS_KEY))[POS_KEY] ?? {}) as Record<string, { x: number; y: number }>;
+    const p = all[location.hostname];
+    return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { x: clamp(p.x, 0, 1), y: clamp(p.y, 0, 1) } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function savePos(pos: { x: number; y: number } | null) {
+  try {
+    const all = { ...(((await chrome.storage.local.get(POS_KEY))[POS_KEY] ?? {}) as Record<string, { x: number; y: number }>) };
+    if (pos) all[location.hostname] = pos;
+    else delete all[location.hostname];
+    await chrome.storage.local.set({ [POS_KEY]: all });
+  } catch {
+    /* storage unavailable: the position just isn't remembered */
   }
 }

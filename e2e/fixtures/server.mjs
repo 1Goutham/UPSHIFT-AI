@@ -46,7 +46,20 @@ http
     if (req.method === "POST" && req.url === "/v1/chat/completions") {
       let raw = "";
       req.on("data", (c) => (raw += c));
-      req.on("end", () => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(fakeCompletion(JSON.parse(raw)))));
+      req.on("end", async () => {
+        const body = JSON.parse(raw);
+        const done = fakeCompletion(body);
+        if (!body.stream) return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(done));
+        // OpenAI-style SSE: the JSON arrives in small pieces, like a real model writing it.
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        const text = done.choices[0].message.content;
+        for (let i = 0; i < text.length; i += 24) {
+          res.write(`data: ${JSON.stringify({ model: done.model, choices: [{ index: 0, delta: { content: text.slice(i, i + 24) } }] })}\n\n`);
+          await new Promise((r) => setTimeout(r, 30));
+        }
+        res.write(`data: ${JSON.stringify({ model: done.model, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: done.usage })}\n\n`);
+        res.end("data: [DONE]\n\n");
+      });
       return;
     }
     if (req.url === "/v1") return res.writeHead(200, { "content-type": "text/html" }).end(v1);

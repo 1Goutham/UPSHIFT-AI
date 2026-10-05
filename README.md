@@ -30,6 +30,8 @@ extension/src/
   - The prompt gap checks (`src/lib/engines/prompt-lint.ts`), platform detection and the intent check (`src/lib/refine/*`) are bundled into the extension. Analysis needs no network.
   - Refinement runs on the server (`POST /api/refine`) through the provider layer. Grok is the default; Claude works too.
   - Model output is schema-constrained (Zod), re-validated on the server, and narrowed again in the extension before rendering.
+  - **Speed:** refinement uses a non-reasoning model (`XAI_FAST_MODEL`, default `grok-4-fast-non-reasoning`, falling back to `XAI_MODEL` if the key can't use it) and a compact output schema with the refined prompt first. The prompt streams into the panel as it is written; the full result is validated before Replace is offered.
+- **Movable:** drag the button anywhere; the spot is remembered per site on this device. Double-click, or drop it back on the prompt box, to dock it again.
 - **Intent preservation:**
   - The model is told not to invent requirements, to mark assumptions and to leave `{{placeholders}}`.
   - Afterwards a deterministic check reports "kept N of M key terms" (vague words like "cool" are excluded, since replacing them is the point).

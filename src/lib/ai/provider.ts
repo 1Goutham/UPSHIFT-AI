@@ -26,6 +26,8 @@ export class ProviderNotConfiguredError extends Error {
 }
 
 export class ProviderError extends Error {
+  /** The requested model doesn't exist for this key (lets a fast-model call fall back). */
+  modelMissing?: boolean;
   constructor(
     message: string,
     public status?: number,
@@ -41,10 +43,16 @@ export type ProviderStatus = {
   provider: ProviderId;
   label: string;
   model: string;
+  /** Model for speed: "fast" calls (xAI only; Anthropic uses `model` with low effort). */
+  fastModel: string;
   fallbacks: boolean;
 };
 
 const DEFAULT_MODEL: Record<ProviderId, string> = { anthropic: "claude-opus-5-5", xai: "grok-4-fast" };
+// Interactive, latency-sensitive calls (prompt refinement) use a non-reasoning
+// model: the task is a rewrite, and reasoning tokens are pure wait. If the key
+// can't use it, the call falls back to the main model once.
+const DEFAULT_FAST_XAI = "grok-4-fast-non-reasoning";
 // Claude models that accept the server-side refusal fallback ("default" routing).
 const FALLBACK_MODELS = new Set(["claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5"]);
 
@@ -89,6 +97,7 @@ export function providerStatus(): ProviderStatus {
     provider,
     label: provider === "xai" ? "xAI" : "Anthropic",
     model,
+    fastModel: provider === "xai" ? process.env.XAI_FAST_MODEL || DEFAULT_FAST_XAI : model,
     fallbacks: provider === "anthropic" && FALLBACK_MODELS.has(model) && process.env.UPSHIFT_FALLBACKS !== "off",
   };
 }
@@ -125,6 +134,10 @@ export type StructuredRequest<T extends z.ZodType> = {
   projectId?: string | null;
   effort?: "low" | "medium" | "high";
   maxTokens?: number;
+  /** "fast": an interactive call where latency matters more than depth. */
+  speed?: "fast";
+  /** Called with the raw output so far, as it streams (xAI). Never trusted: the final result is still validated. */
+  onText?: (soFar: string) => void;
 };
 
 export type StructuredResult<T> = { data: T; model: string; inputTokens: number; outputTokens: number };
@@ -231,9 +244,23 @@ function jsonSchemaFor(schema: z.ZodType) {
 }
 
 async function callXai<T extends z.ZodType>(req: StructuredRequest<T>, status: ProviderStatus): Promise<RawResult> {
+  if (req.speed === "fast" && status.fastModel !== status.model) {
+    try {
+      return await xaiRequest(req, status.fastModel);
+    } catch (err) {
+      // The fast model isn't available to this key: use the configured model instead.
+      if (err instanceof ProviderError && err.modelMissing) return xaiRequest(req, status.model);
+      throw err;
+    }
+  }
+  return xaiRequest(req, status.model);
+}
+
+async function xaiRequest<T extends z.ZodType>(req: StructuredRequest<T>, model: string): Promise<RawResult> {
   const base = (process.env.XAI_API_BASE || "https://api.x.ai/v1").replace(/\/$/, "");
+  const stream = Boolean(req.onText);
   const body = JSON.stringify({
-    model: status.model,
+    model,
     messages: [
       { role: "system", content: req.system },
       { role: "user", content: toXaiContent(req.content) },
@@ -243,6 +270,7 @@ async function callXai<T extends z.ZodType>(req: StructuredRequest<T>, status: P
       json_schema: { name: req.operation.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64), strict: true, schema: jsonSchemaFor(req.schema) },
     },
     max_completion_tokens: req.maxTokens ?? 16000,
+    ...(stream ? { stream: true } : {}),
   });
 
   const doFetch = testFetch ?? fetch;
@@ -255,36 +283,93 @@ async function callXai<T extends z.ZodType>(req: StructuredRequest<T>, status: P
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${process.env.XAI_API_KEY}` },
         body,
-        signal: AbortSignal.timeout(180_000),
+        signal: AbortSignal.timeout(req.speed === "fast" ? 90_000 : 180_000),
       });
       if (res.status !== 429 && res.status < 500) break;
     } catch (err) {
       lastErr = err;
       res = null;
     }
-    if (attempt === 0 && !testFetch) await new Promise((r) => setTimeout(r, 1500));
+    if (attempt === 0 && !testFetch) await new Promise((r) => setTimeout(r, 800));
   }
 
   if (!res) {
     if ((lastErr as Error)?.name === "TimeoutError") throw new ProviderError("The AI provider timed out. Retry, or try a smaller input.", 504);
     throw new ProviderError("Could not reach the AI provider.", 502);
   }
-  const data = (await res.json().catch(() => ({}))) as XaiResponse;
   if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as XaiResponse;
     const detail = (typeof data.error === "string" ? data.error : data.error?.message ?? "").slice(0, 300);
     if (res.status === 401 || res.status === 403) throw new ProviderError("The AI provider rejected the configured API key.", 503);
     if (res.status === 429) throw new ProviderError("The AI provider is rate limiting requests. Wait a moment and retry.", 429);
-    if (res.status === 404) throw new ProviderError(`The model "${status.model}" was not found. Set XAI_MODEL to a model your key can use.`, 502);
+    if (res.status === 404 || (res.status === 400 && /model/i.test(detail) && /not (found|exist|available)|invalid|unknown|access/i.test(detail)))
+      throw Object.assign(new ProviderError(`The model "${model}" was not found. Set XAI_MODEL to a model your key can use.`, 502), { modelMissing: true });
     if (res.status === 400 || res.status === 422) throw new ProviderError(`The AI provider rejected the request${detail ? `: ${detail}` : "."}`, 502);
     throw new ProviderError(`The AI provider returned an error (${res.status}).`, 502);
   }
-  const usage = { model: data.model || status.model, inputTokens: data.usage?.prompt_tokens ?? 0, outputTokens: data.usage?.completion_tokens ?? 0 };
+
+  let data: XaiResponse;
+  if (stream && res.body && /event-stream/.test(res.headers.get("content-type") ?? "")) data = await readXaiStream(res.body, req.onText!);
+  else data = (await res.json().catch(() => ({}))) as XaiResponse;
+
+  const usage = { model: data.model || model, inputTokens: data.usage?.prompt_tokens ?? 0, outputTokens: data.usage?.completion_tokens ?? 0 };
   const choice = data.choices?.[0];
   if (choice?.message?.refusal)
     throw new CallError(new ProviderError("The model declined this request. Try rephrasing, or remove sensitive content from the input.", 422), usage);
   if (choice?.finish_reason === "length")
     throw new CallError(new ProviderError("The model ran out of output space before finishing. Try a smaller input.", 502), usage);
   return { text: choice?.message?.content ?? "", ...usage };
+}
+
+type XaiChunk = {
+  model?: string;
+  choices?: { finish_reason?: string | null; delta?: { content?: string | null; refusal?: string | null } }[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
+};
+
+/** Reads an OpenAI-style SSE stream into the same shape as a non-streamed response. */
+async function readXaiStream(body: ReadableStream<Uint8Array>, onText: (soFar: string) => void): Promise<XaiResponse> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let text = "";
+  let refusal = "";
+  let finish: string | undefined;
+  let model: string | undefined;
+  let usage: XaiResponse["usage"];
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (payload === "[DONE]") continue;
+      let chunk: XaiChunk;
+      try {
+        chunk = JSON.parse(payload);
+      } catch {
+        continue;
+      }
+      model ??= chunk.model;
+      if (chunk.usage) usage = chunk.usage;
+      const c = chunk.choices?.[0];
+      if (c?.finish_reason) finish = c.finish_reason;
+      if (c?.delta?.refusal) refusal += c.delta.refusal;
+      if (c?.delta?.content) {
+        text += c.delta.content;
+        try {
+          onText(text);
+        } catch {
+          /* a consumer error must not break the call */
+        }
+      }
+    }
+  }
+  return { model, usage, choices: [{ finish_reason: finish, message: { content: text, refusal: refusal || null } }] };
 }
 
 /* ------------------------------------------------------------------ */

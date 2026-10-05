@@ -4,6 +4,7 @@ import { lintPrompt } from "@/lib/engines/prompt-lint";
 import { RefinementSchema, type Refinement } from "./schemas";
 import { intentCoverage, wordCount } from "./intent-check";
 import { platformLabel, type Mode } from "./platforms";
+import { partialStringField } from "./partial";
 import { ApiError } from "@/lib/api";
 
 /**
@@ -46,7 +47,11 @@ export type RefineResponse = Refinement & {
 
 export const MAX_PROMPT_CHARS = 12_000;
 
-export async function refinePrompt(input: RefineInput): Promise<RefineResponse> {
+/**
+ * @param onRefined called with the refined prompt so far while the model is
+ *   still writing (display only; the final result is validated as usual).
+ */
+export async function refinePrompt(input: RefineInput, onRefined?: (soFar: string) => void): Promise<RefineResponse> {
   const prompt = input.prompt.trim();
   if (!prompt) throw new ApiError(400, "Add a prompt first.");
   if (prompt.length > MAX_PROMPT_CHARS) throw new ApiError(413, `Prompts up to ${MAX_PROMPT_CHARS.toLocaleString()} characters.`);
@@ -58,8 +63,15 @@ export async function refinePrompt(input: RefineInput): Promise<RefineResponse> 
     userId: input.userId,
     system: `${BASE}\n\n${MODE_RULES[input.mode]}`,
     effort: input.mode === "quick" ? "low" : "medium",
-    maxTokens: input.mode === "quick" ? 4000 : 12000,
+    speed: "fast",
+    maxTokens: input.mode === "quick" ? 4000 : 8000,
     schema: RefinementSchema,
+    onText: onRefined
+      ? (raw) => {
+          const soFar = partialStringField(raw, "refined");
+          if (soFar) onRefined(soFar);
+        }
+      : undefined,
     content: [
       {
         type: "text",

@@ -90,6 +90,8 @@ test("connect in the popup, then refine, replace and undo on ChatGPT", async () 
   await expect(panel(page).getByRole("radio", { name: "Expert" })).toHaveAttribute("aria-checked", "true");
   await panel(page).getByRole("button", { name: "Refine", exact: true }).click();
 
+  // The refined prompt streams in while the model is still writing.
+  await expect(panel(page).locator(".out.live")).toContainText("Build me a portfolio");
   await expect(panel(page).locator(".pill")).toHaveText(/Intent kept\s+\d+\/\d+/);
   await expect(panel(page).locator(".out")).toContainText("high-contrast dark design");
   await page.screenshot({ path: "test-results/shots/ext-chatgpt-result.png" });
@@ -123,6 +125,40 @@ test("comes back if the page redraws and removes it", async () => {
   await page.evaluate(() => document.querySelectorAll("upshift-root").forEach((n) => n.remove()));
   await expect(page.locator("upshift-root")).toHaveCount(1);
   await expect(fab(page)).toBeVisible();
+  await page.close();
+});
+
+test("the button can be dragged anywhere, remembers its spot, and docks again on double-click", async () => {
+  const page = await ctx.newPage();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("https://chatgpt.com/");
+  const docked = (await fab(page).boundingBox())!;
+  await page.mouse.move(docked.x + 16, docked.y + 16);
+  await page.mouse.down();
+  await page.mouse.move(400, 300, { steps: 8 });
+  await page.mouse.move(200, 150, { steps: 8 });
+  await page.mouse.up();
+  const moved = (await fab(page).boundingBox())!;
+  expect(Math.abs(moved.x + 16 - 200)).toBeLessThan(4);
+  expect(Math.abs(moved.y + 16 - 150)).toBeLessThan(4);
+  // A drag is not a click: the panel stays closed.
+  await expect(panel(page)).toHaveCount(0);
+  // A click opens the panel next to the button.
+  await fab(page).click();
+  await expect(panel(page)).toBeVisible();
+  const p = (await panel(page).boundingBox())!;
+  expect(p.y).toBeGreaterThan(moved.y);
+  await page.keyboard.press("Escape");
+
+  // Remembered after a reload.
+  await page.reload();
+  // (within a few px: the button zooms slightly while the mouse is over it)
+  await page.mouse.move(5, 5);
+  await expect.poll(async () => Math.abs(((await fab(page).boundingBox())?.x ?? 0) - moved.x)).toBeLessThan(3);
+  // Double-click docks it back on the prompt box.
+  await fab(page).dblclick();
+  await page.mouse.move(5, 5);
+  await expect.poll(async () => Math.abs(((await fab(page).boundingBox())?.x ?? 0) - docked.x)).toBeLessThan(3);
   await page.close();
 });
 
