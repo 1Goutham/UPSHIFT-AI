@@ -99,7 +99,7 @@ export function NextStep({ ctx, compact = false }: { ctx: Ctx; compact?: boolean
 
       {!provider.configured ? (
         <section className="rounded-md border border-dashed border-line-strong p-3 text-xs leading-relaxed text-ink-3">
-          No AI provider configured. Rule-based checks, browser checks, structured prompts and corrections still work. Add <code className="font-mono text-ink-2">ANTHROPIC_API_KEY</code> on the server for model briefs, rewrites and visual review.
+          No AI provider configured. Rule-based checks, browser checks, structured prompts and corrections still work. Add <code className="font-mono text-ink-2">XAI_API_KEY</code> or <code className="font-mono text-ink-2">ANTHROPIC_API_KEY</code> on the server for model briefs, rewrites and visual review.
         </section>
       ) : null}
     </div>

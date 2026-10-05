@@ -35,6 +35,7 @@ export default defineConfig({
         UPSHIFT_CHROMIUM_NO_SANDBOX: process.env.UPSHIFT_CHROMIUM_NO_SANDBOX ?? "",
         UPSHIFT_CHROMIUM_PATH: process.env.UPSHIFT_CHROMIUM_PATH ?? "",
         ANTHROPIC_API_KEY: "",
+        XAI_API_KEY: "",
         NEXT_TELEMETRY_DISABLED: "1",
       },
     },

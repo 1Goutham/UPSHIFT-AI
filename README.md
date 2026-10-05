@@ -28,6 +28,7 @@ UPSHIFT is not a chatbot or a prompt rewriter. A project carries one set of requ
 - Requirement coverage is shown as counts per status with the caption "not a measure of overall or creative quality". There is no universal score.
 - Every audit lists **how it was checked** (which methods ran, which did not, and why) and **what was not covered**.
 - With no AI provider configured, model features say so and stay disabled. Nothing is simulated.
+- If the model call fails during an audit, the audit still completes with every automated result and says the model review did not run.
 
 ## Running it
 
@@ -40,8 +41,9 @@ With no configuration, the app uses an embedded Postgres (PGlite under `.data/`)
 
 | Variable | Effect |
 |---|---|
-| `ANTHROPIC_API_KEY` | Enables model-drafted briefs, prompt rewrite and refine, and model review of outputs (incl. screenshots). Server-side only. |
-| `UPSHIFT_MODEL` | Default `claude-opus-5-5`. |
+| `XAI_API_KEY` | Grok (xAI). Enables model-drafted briefs, prompt rewrite and refine, and model review of outputs (incl. screenshots). Server-side only. `XAI_MODEL` defaults to `grok-4-fast`. |
+| `ANTHROPIC_API_KEY` | Claude, as an alternative to Grok. `UPSHIFT_MODEL` defaults to `claude-opus-5-5`. If both keys are set Claude is used, unless `UPSHIFT_PROVIDER=xai`. |
+| `XAI_PRICE_INPUT`, `XAI_PRICE_OUTPUT` | Optional USD per million tokens, used only for Settings cost estimates. Without them Grok usage shows tokens and "—" for cost. |
 | `DATABASE_URL` | Use PostgreSQL (`docker compose up -d` gives you one). Required for any multi-instance deployment. |
 | `UPSHIFT_CHROMIUM_PATH`, `UPSHIFT_CHROMIUM_NO_SANDBOX` | Browser checks. Without a usable Chromium, audits record browser checks as *not tested*. |
 | `UPSHIFT_STORAGE_DIR` | Where uploads and screenshots are written. |
@@ -66,8 +68,9 @@ src/
   app/                    Next.js App Router pages + route handlers (typed with Zod)
   components/             UI (design system in ui.tsx, workspace/* for the project loop)
   lib/
-    ai/provider.ts        Provider boundary: schema-constrained JSON, Zod re-validation,
-                          timeouts/retries, refusal handling, token + cost recording
+    ai/provider.ts        Provider boundary (Claude SDK or xAI Grok chat completions):
+                          schema-constrained JSON, Zod re-validation, timeouts/retries,
+                          refusal handling, token + cost recording
     engines/              Pure logic, no I/O; unit tested
       prompt-lint.ts        rule-based prompt gaps
       intent.ts             brief schema + deterministic brief from the user's own words
@@ -99,7 +102,7 @@ Audits run after the response is sent (`after()`), record `running → complete 
 |---|---|
 | Accounts, projects (create, reopen, rename, delete), isolation | Implemented, e2e tested |
 | Brief + acceptance checklist (deterministic path) | Implemented, e2e tested |
-| Brief (model path) | Implemented; provider layer tested against stubbed HTTP, **not yet run against the live API** |
+| Brief (model path) | Implemented for Grok and Claude; both providers tested against stubbed HTTP, **not yet run against the live APIs** |
 | Prompt gap checks, structured prompt, edit-as-new-version, copy/export | Implemented, tested |
 | Prompt rewrite / refine with model, tool-specific notes | Implemented; stub-tested provider, not live-tested |
 | URL audit: markup checks + headless browser (overflow, console, failed requests, screenshots) | Implemented, e2e tested |

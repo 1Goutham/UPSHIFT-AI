@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import type { Artifact, EvaluationSummary } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api";
-import { generateStructured, INJECTION_RULE, providerStatus, untrusted, type ContentBlock } from "@/lib/ai/provider";
+import { generateStructured, INJECTION_RULE, ProviderError, ProviderNotConfiguredError, providerStatus, untrusted, type ContentBlock } from "@/lib/ai/provider";
 import { getObject, putObject } from "@/lib/storage";
 import { safeFetch, UnsafeUrlError } from "@/lib/security/ssrf";
 import { runHtmlChecks } from "@/lib/engines/audit/html-checks";
@@ -183,8 +183,9 @@ async function evaluate(userId: string, goal: string, contentType: string, artif
 
   const pending = reqs.filter((r) => !settled.has(r.id));
   const provider = providerStatus();
+  let modelError = "";
   if (provider.configured && (pending.length || modelContent.length)) {
-    const { data, model: m } = await generateStructured({
+    const reviewed = await generateStructured({
       operation: "audit.evaluate",
       userId,
       projectId: artifact.projectId,
@@ -205,12 +206,24 @@ async function evaluate(userId: string, goal: string, contentType: string, artif
         },
         ...modelContent,
       ],
+    }).catch((err: unknown) => {
+      // Keep every automated result; record why the model part is missing.
+      if (err instanceof ProviderError || err instanceof ProviderNotConfiguredError) {
+        modelError = err.message;
+        return null;
+      }
+      throw err;
     });
-    model = m;
-    const mf = modelFindings(data, reqs, settled);
-    findings.push(...mf);
-    for (const f of mf) if (f.requirementId) covered.add(f.requirementId);
-    methods.push({ id: "model", label: `Model review (${m})`, ran: true, note: "Judgements are labelled 'likely'; they are not verification." });
+    if (reviewed) {
+      model = reviewed.model;
+      const mf = modelFindings(reviewed.data, reqs, settled);
+      findings.push(...mf);
+      for (const f of mf) if (f.requirementId) covered.add(f.requirementId);
+      methods.push({ id: "model", label: `Model review (${reviewed.model})`, ran: true, note: "Judgements are labelled 'likely'; they are not verification." });
+    } else {
+      methods.push({ id: "model", label: "Model review", ran: false, note: `Failed: ${modelError} Automated results below are unaffected; re-run the audit to retry.` });
+      limitations.push("The model review failed, so requirements without an automated check are marked 'not tested'.");
+    }
   } else {
     methods.push({
       id: "model",
@@ -220,7 +233,14 @@ async function evaluate(userId: string, goal: string, contentType: string, artif
     });
   }
 
-  findings.push(...untestedFindings(reqs, covered, provider.configured ? "The review could not assess this requirement." : "No automated check covers this. Review it yourself or configure a model.", hints));
+  findings.push(
+    ...untestedFindings(
+      reqs,
+      covered,
+      provider.configured && !modelError ? "The review could not assess this requirement." : "No automated check covers this. Review it yourself or configure a model.",
+      hints,
+    ),
+  );
   if (!reqs.length) limitations.push("No confirmed requirements, so findings are generic checks only. Confirm requirements in the brief for a targeted audit.");
   return { findings, methods, limitations, screenshots, model };
 }
