@@ -119,7 +119,7 @@ export default async function InsightsPage() {
                       {t.project}
                     </Link>
                     <span className="font-mono text-xs">
-                      <span className="text-ink-3">v{t.first.v}</span> {t.first.failing} → <span className="text-ink-3">v{t.last.v}</span>{" "}
+                      <span className="text-ink-3">v{t.first.v}</span> {t.first.failing} to <span className="text-ink-3">v{t.last.v}</span>{" "}
                       <span className={t.last.failing < t.first.failing ? "text-pass" : t.last.failing > t.first.failing ? "text-fail" : "text-ink"}>{t.last.failing}</span>
                     </span>
                   </li>

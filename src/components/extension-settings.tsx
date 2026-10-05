@@ -56,7 +56,7 @@ export function ExtensionSettings() {
         <li className="flex gap-2">
           <span className="font-mono text-xs text-ink-3">2</span>
           <span>
-            Open <code className="font-mono text-ink">chrome://extensions</code>, turn on Developer mode, Load unpacked → the folder.
+            Open <code className="font-mono text-ink">chrome://extensions</code>, turn on Developer mode, then Load unpacked and pick the folder.
           </span>
         </li>
         <li className="flex flex-wrap items-center gap-2">

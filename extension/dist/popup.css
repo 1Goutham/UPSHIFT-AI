@@ -1,30 +1,39 @@
-:root { color-scheme: dark; --bg:#000; --panel:#0b0b0b; --line:rgba(255,255,255,.1); --line2:rgba(255,255,255,.22); --ink:#fff; --ink2:rgba(255,255,255,.72); --ink3:rgba(255,255,255,.5); --accent:#9dff50; --fail:#ff6b57; }
+:root { color-scheme: light dark;
+  --bg: #f2f2f7; --card: #fff; --line: rgba(60,60,67,.12); --ink: #1d1d1f; --ink2: rgba(60,60,67,.75); --ink3: rgba(60,60,67,.5);
+  --btn: #1d1d1f; --btnInk: #fff; --fill: rgba(118,118,128,.12); --ok: #34c759; --bad: #ff3b30; --on: #34c759; }
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #000; --card: #1c1c1e; --line: rgba(84,84,88,.5); --ink: #f5f5f7; --ink2: rgba(235,235,245,.68); --ink3: rgba(235,235,245,.42);
+  --btn: #f5f5f7; --btnInk: #000; --fill: rgba(118,118,128,.24); --ok: #30d158; --bad: #ff453a; --on: #30d158; } }
 * { box-sizing: border-box; margin: 0; }
-body { width: 340px; min-height: 200px; background: var(--bg); color: var(--ink); font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
-body.page { width: auto; max-width: 420px; margin: 40px auto; }
-main { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-.brand { display: flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: .14em; font-size: 12px; }
-.brand svg { color: var(--accent); }
-.sub { color: var(--ink3); font-size: 12px; }
-label.f { display: flex; flex-direction: column; gap: 4px; }
-label.f span { font: 10px ui-monospace, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); }
-input[type=text], input[type=url], input[type=password] { background: transparent; border: 0; border-bottom: 1px solid var(--line2); color: var(--ink); padding: 6px 0; font: inherit; outline: none; }
-input:focus { border-bottom-color: var(--ink); }
-button { font: inherit; cursor: pointer; border-radius: 8px; height: 32px; padding: 0 12px; border: 1px solid var(--line2); background: transparent; color: var(--ink); }
-button.primary { background: var(--accent); color: #000; border: 0; font-weight: 600; }
-button:disabled { opacity: .5; cursor: default; }
-button:focus-visible, input:focus-visible { outline: 2px solid rgba(157,255,80,.6); outline-offset: 2px; }
-.row { display: flex; gap: 8px; align-items: center; }
-.status { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+body { width: 320px; background: var(--bg); color: var(--ink); font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+body.page { width: auto; max-width: 400px; margin: 48px auto; }
+main { padding: 18px 16px 16px; display: flex; flex-direction: column; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; letter-spacing: .08em; }
+.card { background: var(--card); border-radius: 12px; overflow: hidden; }
+.status { display: flex; align-items: center; gap: 12px; padding: 14px; }
+.status .who { flex: 1; min-width: 0; }
+.status strong { display: block; font-size: 15px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status small { color: var(--ink2); font-size: 12px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink3); flex: none; }
-.dot.on { background: var(--accent); } .dot.err { background: var(--fail); }
-.toggle { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-.toggle small { display: block; color: var(--ink3); font-size: 11px; }
-.toggle input { accent-color: #9dff50; margin-top: 3px; }
-.hr { border-top: 1px solid var(--line); }
-.sites { display: flex; flex-direction: column; gap: 4px; }
-.sites .row { justify-content: space-between; color: var(--ink2); }
-.sites button { height: 24px; font-size: 11px; }
-.err { color: var(--fail); font-size: 12px; }
-.fine { color: var(--ink3); font-size: 11px; }
-a { color: var(--ink2); }
+.dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); } .dot.err { background: var(--bad); }
+.field { display: block; padding: 10px 14px; }
+.field + .field { border-top: .5px solid var(--line); }
+.field span { display: block; font-size: 11px; color: var(--ink3); margin-bottom: 2px; }
+.field input { width: 100%; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13.5px; outline: none; padding: 0; }
+button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+.primary { height: 36px; border-radius: 10px; background: var(--btn); color: var(--btnInk); font-weight: 600; width: 100%; }
+.primary:hover { opacity: .88; } .primary:active { transform: scale(.99); }
+.link { color: var(--ink2); font-size: 12.5px; }
+.link:hover { color: var(--ink); }
+a.link { text-decoration: none; }
+.row-c { display: flex; justify-content: center; gap: 18px; margin-top: -6px; }
+.err { color: var(--bad); font-size: 12px; padding: 0 4px; }
+.group-title { font-size: 11px; color: var(--ink3); padding: 0 14px; margin-bottom: -10px; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; cursor: pointer; }
+.toggle + .toggle, .site + .site { border-top: .5px solid var(--line); }
+.switch { appearance: none; -webkit-appearance: none; width: 38px; height: 23px; border-radius: 12px; background: var(--fill); position: relative; cursor: pointer; flex: none; transition: background .2s; margin: 0; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 19px; height: 19px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .25s cubic-bezier(.2,.9,.3,1.2); }
+.switch:checked { background: var(--on); } .switch:checked::after { transform: translateX(15px); }
+.site { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; }
+.fine { color: var(--ink3); font-size: 11.5px; text-align: center; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid rgba(10,132,255,.55); outline-offset: 2px; border-radius: 6px; }

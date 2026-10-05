@@ -40,8 +40,9 @@ describe("server address", () => {
 describe("manifest", () => {
   it("asks for the minimum", () => {
     expect(manifest.manifest_version).toBe(3);
-    expect(manifest.permissions).toEqual(["storage"]);
-    expect("host_permissions" in manifest).toBe(false);
+    expect(manifest.permissions).toEqual(["storage", "scripting"]);
+    // Required host access is exactly the sites the content script runs on (no extra install warning).
+    expect(manifest.host_permissions).toEqual(manifest.content_scripts[0].matches);
     expect(manifest.content_scripts[0].matches.every((m: string) => /^https:\/\/(chatgpt\.com|chat\.openai\.com|claude\.ai|gemini\.google\.com|grok\.com)\/\*$/.test(m))).toBe(true);
   });
 });

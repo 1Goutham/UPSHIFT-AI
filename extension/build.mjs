@@ -21,11 +21,12 @@ const common = {
   sourcemap: dev ? "inline" : false,
   target: ["chrome116"],
   legalComments: "none",
-  // On Vercel the production URL is known at build time; locally default to the dev server.
+  // On Vercel the production URL is known at build time; otherwise the hosted app (dev builds: local server).
   define: {
     __DEV__: JSON.stringify(dev),
     __DEFAULT_SERVER__: JSON.stringify(
-      process.env.UPSHIFT_SERVER_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000"),
+      process.env.UPSHIFT_SERVER_URL ||
+        (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : dev ? "http://localhost:3000" : "https://upshift-ai.vercel.app"),
     ),
   },
   logLevel: "warning",
@@ -37,7 +38,7 @@ await Promise.all([
 ]);
 
 const manifest = JSON.parse(await fs.readFile(path.join(here, "manifest.base.json"), "utf8"));
-if (dev) manifest.host_permissions = ["http://localhost/*", "http://127.0.0.1/*"];
+if (dev) manifest.host_permissions = [...manifest.host_permissions, "http://localhost/*", "http://127.0.0.1/*"];
 await fs.writeFile(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
 await fs.copyFile(path.join(here, "src/popup/popup.html"), path.join(out, "popup.html"));
 await fs.copyFile(path.join(here, "src/popup/popup.css"), path.join(out, "popup.css"));

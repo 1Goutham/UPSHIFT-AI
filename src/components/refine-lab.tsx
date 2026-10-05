@@ -187,7 +187,7 @@ export function RefineLab({ modelReady, canSave }: { modelReady: boolean; canSav
               kept {r.checks.intent.kept}/{r.checks.intent.terms} key terms
             </span>
             <span>
-              {r.checks.originalWords} → {r.checks.refinedWords} words
+              {r.checks.originalWords} to {r.checks.refinedWords} words
             </span>
             {r.checks.tooLong ? <span className="text-warn">longer than a quick edit should be</span> : null}
             <span>{r.model}</span>

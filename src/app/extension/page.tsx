@@ -7,7 +7,7 @@ export const metadata = { title: "Extension", description: "Analyse and refine p
 
 const STEPS = [
   ["Write", "Type your prompt in ChatGPT, Claude, Gemini or Grok as usual."],
-  ["See the gaps", "The ✦ UPSHIFT button counts what's vague or missing. Instantly, in your browser."],
+  ["See the gaps", "The UPSHIFT button shows what's vague or missing, right in your browser."],
   ["Refine", "Quick, Deep or Expert. Your intent is kept and checked, not rewritten."],
   ["Use it", "Replace the prompt in place, or copy it. Undo any time."],
 ];
@@ -32,14 +32,13 @@ export default async function ExtensionPage() {
         <div className="mt-12 rounded-xl border border-line bg-panel p-4" aria-hidden>
           <p className="text-ink-2">Build me a portfolio website with a cool dark design and some animations.</p>
           <div className="mt-6 flex items-center justify-end gap-3">
-            <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-line-strong bg-bg px-2.5 text-accent">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M12 2.5v19M2.5 12h19M5.3 5.3l13.4 13.4M18.7 5.3 5.3 18.7" />
+            <span className="relative grid h-8 w-8 place-items-center rounded-full border border-line bg-bg text-ink shadow-lg">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 13.5 12 8l6 5.5M6 19 12 13.5l6 5.5" />
               </svg>
-              <span className="text-[11px] font-semibold tracking-[0.12em] text-ink">UPSHIFT</span>
-              <span className="rounded-full bg-accent px-1.5 text-[10px] font-bold text-black">5</span>
+              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[10px] font-semibold text-bg">5</span>
             </span>
-            <span className="text-sm text-ink-3">Send →</span>
+            <span className="text-sm text-ink-3">Send</span>
           </div>
         </div>
 
@@ -58,7 +57,7 @@ export default async function ExtensionPage() {
             <Download className="h-4 w-4" /> Download for Chrome
           </a>
           <span className="text-sm text-ink-3">
-            Unzip → <code className="font-mono text-ink-2">chrome://extensions</code> → Developer mode → Load unpacked
+            Unzip, open <code className="font-mono text-ink-2">chrome://extensions</code>, turn on Developer mode, then Load unpacked.
           </span>
         </div>
 
@@ -68,7 +67,7 @@ export default async function ExtensionPage() {
             <li>Runs only on ChatGPT, Claude, Gemini and Grok. Turn it off per site.</li>
             <li>Gap analysis happens in your browser. Nothing is sent while you type.</li>
             <li>Your prompt goes to your UPSHIFT server only when you click Refine.</li>
-            <li>History is off unless you turn it on. Permissions: storage only.</li>
+            <li>History is off unless you turn it on. No access to any other site.</li>
           </ul>
         </section>
       </section>

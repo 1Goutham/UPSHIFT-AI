@@ -19,19 +19,26 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props = 
 }
 
 const SVG = "http://www.w3.org/2000/svg";
-/** The UPSHIFT asterisk. */
-export function star(size = 14): SVGSVGElement {
+
+function icon(paths: string[], size: number, strokeWidth = 2): SVGSVGElement {
   const svg = document.createElementNS(SVG, "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("width", String(size));
   svg.setAttribute("height", String(size));
   svg.setAttribute("aria-hidden", "true");
-  const p = document.createElementNS(SVG, "path");
-  p.setAttribute("d", "M12 2.5v19M2.5 12h19M5.3 5.3l13.4 13.4M18.7 5.3 5.3 18.7");
-  p.setAttribute("stroke", "currentColor");
-  p.setAttribute("stroke-width", "2");
-  p.setAttribute("stroke-linecap", "round");
-  p.setAttribute("fill", "none");
-  svg.append(p);
+  for (const d of paths) {
+    const p = document.createElementNS(SVG, "path");
+    p.setAttribute("d", d);
+    p.setAttribute("stroke", "currentColor");
+    p.setAttribute("stroke-width", String(strokeWidth));
+    p.setAttribute("stroke-linecap", "round");
+    p.setAttribute("stroke-linejoin", "round");
+    p.setAttribute("fill", "none");
+    svg.append(p);
+  }
   return svg;
 }
+
+/** The UPSHIFT mark: two rising chevrons. */
+export const mark = (size = 14) => icon(["M6 13.5 12 8l6 5.5", "M6 19 12 13.5l6 5.5"], size, 2.2);
+export const closeIcon = (size = 12) => icon(["M6 6l12 12", "M18 6 6 18"], size, 2);

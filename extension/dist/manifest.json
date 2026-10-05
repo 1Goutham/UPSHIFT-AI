@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "UPSHIFT — get more out of every AI",
+  "name": "UPSHIFT",
   "short_name": "UPSHIFT",
   "version": "0.1.0",
-  "description": "Analyse and refine your prompt right where you write it, on ChatGPT, Claude, Gemini and Grok.",
+  "description": "Refine your prompt where you write it. ChatGPT, Claude, Gemini and Grok.",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "icons/16.png",
@@ -42,7 +42,8 @@
     }
   ],
   "permissions": [
-    "storage"
+    "storage",
+    "scripting"
   ],
   "optional_host_permissions": [
     "https://*/*",
@@ -54,7 +55,14 @@
       "suggested_key": {
         "default": "Alt+U"
       },
-      "description": "Open UPSHIFT on the current AI tool"
+      "description": "Open UPSHIFT"
     }
-  }
+  },
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://grok.com/*"
+  ]
 }

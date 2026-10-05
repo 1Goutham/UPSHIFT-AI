@@ -55,9 +55,9 @@ test("not connected: analysis works locally, refine asks to connect", async () =
   await page.keyboard.type("Build me a portfolio website with a cool dark design and some animations.");
   await expect(fab(page).locator(".badge")).toHaveText(/\d+/);
   await fab(page).click();
-  await expect(panel(page)).toContainText(/Vague in \d+ areas?\./);
-  await expect(panel(page)).toContainText("· ChatGPT");
-  await panel(page).getByRole("button", { name: "Refine prompt" }).click();
+  await expect(panel(page)).toContainText(/\d+ things? to clarify/);
+  await expect(panel(page).locator(".plat")).toHaveText("ChatGPT");
+  await panel(page).getByRole("button", { name: "Refine", exact: true }).click();
   await expect(panel(page)).toContainText("Connect UPSHIFT to refine.");
   await page.close();
 });
@@ -69,8 +69,8 @@ test("connect in the popup, then refine, replace and undo on ChatGPT", async () 
   await popup.getByLabel("UPSHIFT server").fill(SERVER);
   await popup.getByLabel("Extension token").fill(token);
   await popup.getByRole("button", { name: "Connect" }).click();
-  await expect(popup.getByText("Connected as Ext")).toBeVisible();
-  await expect(popup.getByText("Refinement is on.")).toBeVisible();
+  await expect(popup.getByText("Ext", { exact: true })).toBeVisible();
+  await expect(popup.getByText("Connected", { exact: true })).toBeVisible();
   await popup.screenshot({ path: "test-results/shots/ext-popup.png" });
   await popup.close();
 
@@ -88,11 +88,9 @@ test("connect in the popup, then refine, replace and undo on ChatGPT", async () 
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
   await expect(panel(page).getByRole("radio", { name: "Expert" })).toHaveAttribute("aria-checked", "true");
-  await panel(page).getByRole("button", { name: "Refine prompt" }).click();
+  await panel(page).getByRole("button", { name: "Refine", exact: true }).click();
 
-  await expect(panel(page)).toContainText("website build");
-  await expect(panel(page)).toContainText("+ Target audience");
-  await expect(panel(page)).toContainText(/Kept \d+\/\d+ key terms/);
+  await expect(panel(page).locator(".pill")).toHaveText(/Intent kept\s+\d+\/\d+/);
   await expect(panel(page).locator(".out")).toContainText("high-contrast dark design");
   await page.screenshot({ path: "test-results/shots/ext-chatgpt-result.png" });
 
@@ -102,17 +100,29 @@ test("connect in the popup, then refine, replace and undo on ChatGPT", async () 
 
   // Replace writes into the composer and is verified; Undo restores.
   await panel(page).getByRole("button", { name: "Replace" }).click();
-  await expect(panel(page).getByRole("button", { name: "Replaced ✓" })).toBeVisible();
+  await expect(panel(page)).toContainText("Replaced in the prompt box.");
   await expect(page.locator("#prompt-textarea")).toContainText("subtle scroll animations");
   await panel(page).getByRole("button", { name: "Undo" }).click();
   await expect(page.locator("#prompt-textarea")).toHaveText(original);
   await expect(panel(page)).toContainText("Your original prompt is back.");
 
   // Expert notes are labelled with the platform.
-  await panel(page).getByText("Why these changes").click();
-  await expect(panel(page)).toContainText("Optimised for ChatGPT");
+  await panel(page).getByText("What changed").click();
+  await expect(panel(page)).toContainText("Target audience");
+  await expect(panel(page)).toContainText("For ChatGPT");
   await page.keyboard.press("Escape");
   await expect(panel(page)).toHaveCount(0);
+  await page.close();
+});
+
+test("comes back if the page redraws and removes it", async () => {
+  const page = await ctx.newPage();
+  await page.goto("https://chatgpt.com/");
+  await expect(fab(page)).toBeVisible();
+  // Frameworks that re-render the whole document drop foreign nodes.
+  await page.evaluate(() => document.querySelectorAll("upshift-root").forEach((n) => n.remove()));
+  await expect(page.locator("upshift-root")).toHaveCount(1);
+  await expect(fab(page)).toBeVisible();
   await page.close();
 });
 
@@ -121,8 +131,8 @@ test("Grok textarea composer: replace works through the native setter", async ()
   await page.goto("https://grok.com/");
   await page.locator("textarea").fill("write a cool landing page");
   await fab(page).click();
-  await expect(panel(page)).toContainText("· Grok");
-  await panel(page).getByRole("button", { name: "Refine prompt" }).click();
+  await expect(panel(page).locator(".plat")).toHaveText("Grok");
+  await panel(page).getByRole("button", { name: "Refine", exact: true }).click();
   await panel(page).getByRole("button", { name: "Replace" }).click();
   await expect(page.locator("textarea")).toHaveValue(/high-contrast landing page/);
   await page.close();
@@ -132,13 +142,13 @@ test("history is saved only when turned on, and shows in the web app", async () 
   const id = await extensionId();
   const popup = await ctx.newPage();
   await popup.goto(`chrome-extension://${id}/popup.html`);
-  await popup.getByLabel("Save to history").check();
+  await popup.getByLabel("Save history").check();
   await popup.close();
   const page = await ctx.newPage();
   await page.goto("https://grok.com/");
   await page.locator("textarea").fill("summarise this cool article for my team");
   await fab(page).click();
-  await panel(page).getByRole("button", { name: "Refine prompt" }).click();
+  await panel(page).getByRole("button", { name: "Refine", exact: true }).click();
   await expect(panel(page).locator(".out")).toContainText("high-contrast article");
   // The signed-in web session (same user as the token) now sees exactly this one, from the extension.
   const list = await (await page.request.get(`${SERVER}/api/refinements`)).json();
@@ -165,6 +175,23 @@ test("turning UPSHIFT off on a site removes it there", async () => {
   await popup.getByRole("button", { name: "Turn on" }).click();
   await popup.close();
   await expect(page.locator("upshift-root")).toHaveCount(1);
+  await page.close();
+});
+
+test("install or update attaches to tabs that are already open, without a refresh", async () => {
+  const page = await ctx.newPage();
+  await page.goto("https://chatgpt.com/");
+  await expect(fab(page)).toBeVisible();
+  // What runs on install or update: inject into open AI tabs. A copy already
+  // running there retires, so the page ends up with exactly one working button.
+  const [sw] = ctx.serviceWorkers();
+  const attached = await sw.evaluate(() => (globalThis as unknown as { __upshiftAttach: () => Promise<number> }).__upshiftAttach());
+  expect(attached).toBeGreaterThan(0);
+  await expect.poll(async () => page.evaluate(() => document.querySelectorAll("upshift-root").length), { timeout: 10_000 }).toBe(1);
+  await page.locator("#prompt-textarea").click();
+  await page.keyboard.type("write a cool story");
+  await fab(page).click();
+  await expect(panel(page)).toContainText(/to clarify|Looks clear/);
   await page.close();
 });
 

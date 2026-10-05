@@ -50,3 +50,21 @@ chrome.runtime.onMessage.addListener((msg: Msg, sender, reply) => {
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command === "toggle-upshift" && tab?.id !== undefined) chrome.tabs.sendMessage(tab.id, { type: "toggle" } satisfies Msg).catch(() => {});
 });
+
+// Chrome only runs content scripts on pages loaded after install. Attach to AI
+// tabs that are already open, so UPSHIFT appears without a refresh.
+async function attachToOpenTabs() {
+  const matches = chrome.runtime.getManifest().content_scripts?.[0]?.matches ?? [];
+  const tabs = await chrome.tabs.query({ url: matches }).catch(() => []);
+  await Promise.all(
+    tabs
+      .filter((tab) => tab.id !== undefined && !tab.discarded)
+      .map((tab) => chrome.scripting.executeScript({ target: { tabId: tab.id! }, files: ["content.js"] }).catch(() => {})),
+  );
+  return tabs.length;
+}
+chrome.runtime.onInstalled.addListener(() => void attachToOpenTabs());
+
+declare const __DEV__: boolean;
+// Tests can't reinstall the extension under a live tab; dev builds expose the same path.
+if (typeof __DEV__ !== "undefined" && __DEV__) (globalThis as Record<string, unknown>).__upshiftAttach = attachToOpenTabs;

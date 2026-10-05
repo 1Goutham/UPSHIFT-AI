@@ -34,9 +34,10 @@ extension/src/
   - The model is told not to invent requirements, to mark assumptions and to leave `{{placeholders}}`.
   - Afterwards a deterministic check reports "kept N of M key terms" (vague words like "cool" are excluded, since replacing them is the point).
   - Quick mode flags output that balloons beyond a light edit.
+- **Stays attached:** if a site redraws its page and drops the button, it is re-attached; a copy left from an earlier version retires when a new one starts.
 - **Honest insertion:** Replace writes the text the way a user would (native setter + input event for textareas; insertText, then paste, for contenteditable editors). It then reads the composer back. If the text isn't there, the panel says so and copies it instead. Undo restores the original.
 - **Privacy and permissions:**
-  - The only permission is `storage`; content scripts run only on chatgpt.com, chat.openai.com, claude.ai, gemini.google.com and grok.com.
+  - Permissions: `storage`, plus `scripting` and host access for the same five sites the content script runs on (chatgpt.com, chat.openai.com, claude.ai, gemini.google.com, grok.com), used only to attach to AI tabs that were already open at install or update. No other site.
   - Access to your UPSHIFT server is an optional host permission, requested for that one origin when you connect.
   - The token is created in Settings → Browser extension, stored hashed on the server and in `storage.local` on the device, and is revocable.
   - History is off by default; you can turn UPSHIFT off per site.

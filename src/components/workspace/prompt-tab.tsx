@@ -302,7 +302,7 @@ function PromptView({ ctx, prompt, original, onCreated }: { ctx: Ctx; prompt: Pr
             {showOriginal ? "Hide" : "Show"} original side by side
           </button>
           <span className="ml-3 font-mono">
-            {words(original.content)}w → {words(current.text)}w
+            {words(original.content)} to {words(current.text)} words
           </span>
           {showOriginal ? (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
