@@ -6,6 +6,7 @@ import type { Prompt, PromptWeakness } from "@/lib/db/schema";
 import { api, Asterisk, CopyButton, downloadText, Empty, ErrorNote, Field, Spinner, useToast } from "../ui";
 import { Dictate } from "../dictate";
 import { fmtTime, type Ctx } from "./types";
+import { PromptParts } from "../prompt-parts";
 
 const KIND_LABEL: Record<string, string> = { original: "Original", optimized: "Improved", refined: "Refined", correction: "Correction" };
 const METHOD_LABEL: Record<string, string> = { model: "model", deterministic: "structured", user: "you" };
@@ -291,7 +292,7 @@ function PromptView({ ctx, prompt, original, onCreated }: { ctx: Ctx; prompt: Pr
         </div>
       ) : (
         <div className="rounded-lg border border-line bg-panel p-4 md:p-5">
-          <p className="prompt-out">{current.text}</p>
+          {prompt.kind === "correction" && prompt.analysis.parts?.length ? <PromptParts content={prompt.content} parts={prompt.analysis.parts} /> : <p className="prompt-out">{current.text}</p>}
         </div>
       )}
 

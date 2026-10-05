@@ -310,3 +310,86 @@ export function runHtmlChecks(html: string, finalUrl: string, httpStatus: number
 
   return { findings: out, facts: { title, text: text.slice(0, 30_000), bytes, scripts, clientRendered } };
 }
+
+const SKIP_EXT = /\.(pdf|zip|png|jpe?g|gif|webp|svg|mp4|mp3|webm|ico|xml|json|txt|css|js)$/i;
+
+/** Same-origin page links from the served HTML, normalised, without the page itself. */
+export function extractInternalLinks(html: string, baseUrl: string, max = 8): string[] {
+  const base = new URL(baseUrl);
+  const root = parse(html);
+  const out: string[] = [];
+  const seen = new Set([base.origin + base.pathname.replace(/\/$/, "")]);
+  for (const a of root.querySelectorAll("a[href]")) {
+    const href = (a.getAttribute("href") ?? "").trim();
+    if (!href || href.startsWith("#") || /^(mailto|tel|javascript|data):/i.test(href)) continue;
+    let u: URL;
+    try {
+      u = new URL(href, base);
+    } catch {
+      continue;
+    }
+    if (u.origin !== base.origin || SKIP_EXT.test(u.pathname)) continue;
+    const key = u.origin + u.pathname.replace(/\/$/, "");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(u.origin + u.pathname + u.search);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+export type CrawledPage = { url: string; status: number; title?: string; placeholders?: string[]; error?: string };
+
+/** Findings for the extra pages reached from the landing page. */
+export function crawlFindings(homeTitle: string, pages: CrawledPage[]): FindingDraft[] {
+  if (!pages.length) return [];
+  const out: FindingDraft[] = [];
+  const broken = pages.filter((p) => p.error || p.status >= 400);
+  out.push({
+    checkKey: "check:internal_links",
+    title: "Internal links work",
+    detail: broken.length ? `${broken.length} of ${pages.length} linked pages failed to load.` : `All ${pages.length} linked pages load.`,
+    status: broken.length ? "verified_fail" : "verified_pass",
+    severity: broken.length ? "high" : "info",
+    evidence: (broken.length ? broken : pages).slice(0, 8).map((p) => `${p.status || "error"} ${p.url}${p.error ? ` (${p.error})` : ""}`).join("\n"),
+    recommendation: broken.length ? "Create the missing pages or point the links somewhere real." : "",
+    verification: "Click each link in the navigation and footer.",
+    method: "deterministic",
+    category: "functionality",
+  });
+  const ph = pages.filter((p) => p.placeholders?.length);
+  if (pages.some((p) => p.placeholders))
+    out.push({
+      checkKey: "check:inner_placeholders",
+      title: "Inner pages have real content",
+      detail: ph.length ? `Placeholder text on ${ph.length} page(s).` : "No placeholder text on linked pages.",
+      status: ph.length ? "verified_fail" : "verified_pass",
+      severity: ph.length ? "high" : "info",
+      evidence: ph.slice(0, 5).map((p) => `${new URL(p.url).pathname}: ${p.placeholders![0]}`).join("\n"),
+      recommendation: ph.length ? "Replace placeholder copy on these pages." : "",
+      method: "deterministic",
+      category: "content",
+    });
+  const titled = pages.filter((p) => p.title !== undefined && !p.error && p.status < 400);
+  if (titled.length && homeTitle) {
+    const same = titled.filter((p) => p.title === homeTitle);
+    out.push({
+      checkKey: "check:distinct_titles",
+      title: "Pages have their own titles",
+      detail: same.length ? `${same.length} of ${titled.length} pages reuse the home page title "${homeTitle.slice(0, 60)}".` : "Each linked page has its own title.",
+      status: same.length ? "verified_fail" : "verified_pass",
+      severity: same.length ? "low" : "info",
+      evidence: same.slice(0, 5).map((p) => new URL(p.url).pathname).join("\n"),
+      recommendation: same.length ? "Give each page a title that names that page." : "",
+      method: "deterministic",
+      category: "technical",
+    });
+  }
+  return out;
+}
+
+/** Title and placeholder text of an inner page. */
+export function pageFacts(html: string) {
+  const root = parse(html, { blockTextElements: { script: true, style: true, noscript: true } });
+  return { title: root.querySelector("title")?.text.trim() ?? "", placeholders: findPlaceholders((root.querySelector("body") ?? root).structuredText) };
+}

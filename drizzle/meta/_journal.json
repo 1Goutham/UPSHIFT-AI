@@ -29,6 +29,13 @@
       "when": 1791182031472,
       "tag": "0003_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791185141171,
+      "tag": "0004_guests_hooks",
+      "breakpoints": true
     }
   ]
 }

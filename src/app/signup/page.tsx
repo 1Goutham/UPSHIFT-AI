@@ -5,6 +5,7 @@ import { AuthForm } from "@/components/auth-form";
 export const metadata = { title: "Create account" };
 
 export default async function Page() {
-  if (await currentUser()) redirect("/app");
+  const user = await currentUser();
+  if (user && !user.isGuest) redirect("/app");
   return <AuthForm mode="signup" />;
 }

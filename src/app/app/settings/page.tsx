@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { desc, eq, gte, and } from "drizzle-orm";
 import { currentUser } from "@/lib/auth/session";
 import { getDb, schema, dbDriver } from "@/lib/db";
@@ -113,11 +114,19 @@ export default async function SettingsPage() {
 
       <section>
         <h2 className="eyebrow mb-3">Account</h2>
-        <ChangePassword />
+        {user.isGuest ? (
+          <Link href="/signup" className="btn btn-accent btn-sm">
+            Create an account to keep your audits
+          </Link>
+        ) : (
+          <ChangePassword />
+        )}
         <p className="mt-8 text-xs text-ink-3">Your projects and files are private. Material you analyse is sent to the model provider for that request.</p>
-        <div className="mt-4">
-          <DeleteAccount email={user.email} />
-        </div>
+        {!user.isGuest ? (
+          <div className="mt-4">
+            <DeleteAccount email={user.email} />
+          </div>
+        ) : null}
       </section>
     </main>
   );

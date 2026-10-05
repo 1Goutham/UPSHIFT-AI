@@ -7,7 +7,7 @@ import { limits } from "@/lib/security/ratelimit";
 /** Re-run the audit on an existing version (e.g. after requirements changed). */
 export const POST = authed<{ id: string; aid: string }>(async (_req, user, { id, aid }) => {
   const project = await requireProject(user.id, id);
-  await limits.audit(user.id);
+  await (user.isGuest ? limits.guestAudit(user.id) : limits.audit(user.id));
   const { evaluation } = await startEvaluation(user.id, project.id, aid);
   after(() => runEvaluation(user.id, evaluation.id));
   return { evaluation };

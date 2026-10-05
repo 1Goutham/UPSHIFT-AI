@@ -9,7 +9,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const projects = await listProjects(user.id);
   return (
     <div className="flex min-h-dvh flex-col bg-bg md:flex-row">
-      <Sidebar user={{ name: user.name, email: user.email }} projects={projects.slice(0, 12).map((p) => ({ id: p.id, name: p.name }))} />
+      <Sidebar user={{ name: user.name, email: user.email, isGuest: user.isGuest }} projects={projects.slice(0, 12).map((p) => ({ id: p.id, name: p.name }))} />
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

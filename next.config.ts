@@ -18,7 +18,7 @@ const CSP = [
 const nextConfig: NextConfig = {
   // These packages ship native bindings / WASM or spawn processes; keep them
   // out of the server bundle so Node resolves them at runtime.
-  serverExternalPackages: ["@electric-sql/pglite", "playwright-core", "postgres", "@sparticuz/chromium"],
+  serverExternalPackages: ["@electric-sql/pglite", "playwright-core", "postgres", "@sparticuz/chromium", "axe-core"],
   poweredByHeader: false,
   // Files read at runtime by path (not imported) must be shipped with the functions.
   outputFileTracingIncludes: {

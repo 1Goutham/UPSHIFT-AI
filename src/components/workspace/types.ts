@@ -11,6 +11,7 @@ export type WS = {
   events: EventRow[];
   references: ReferenceImage[];
   shared: boolean;
+  hook: { lastRunAt: Date | string | null } | null;
 };
 
 export type Provider = { configured: boolean; model: string };

@@ -1,18 +1,25 @@
-# UPSHIFT AI
+# UPSHIFT
 
-**Get more out of every AI.** An AI utilisation platform that turns vague intentions into a confirmed brief, sharper prompts, audited outputs and targeted fixes, and shows evidence of what improved between versions.
+**Did the AI build what you asked?** Paste the URL of a site built with Lovable, v0, Bolt, Cursor, Replit or Claude Code. UPSHIFT checks it in a real browser on phone and desktop, against what you asked for, and gives you the exact prompt to fix it. Then it checks whether the fix worked.
 
-```
-INTENT → STRATEGY → CONTEXT → EXECUTION → EVALUATION → IMPROVEMENT → LEARNING
-```
+**For:** freelancers and agencies handing AI-built sites to clients, and founders iterating on their own.
 
-UPSHIFT is not a chatbot or a prompt rewriter. A project carries one set of requirements through the whole loop:
+**The loop**
 
-1. **Brief.** Your goal, original prompt and optional reference images (mockups, inspiration; drop, paste or pick) become an editable brief with an acceptance checklist. Every suggestion is labelled *You said / Inferred / Assumption / Baseline* and only counts once you accept it.
-2. **Prompt.** Rule-based checks show what the prompt is missing (with the reason each one fired). The improved prompt keeps your wording and decisions. Earlier versions are never overwritten.
-3. **Outputs.** Add the AI's result as a URL, an image or screenshot, or text/code. It is audited against the confirmed checklist with markup checks, a real headless browser at 390px and 1440px, and (when configured) a model review.
-4. **Correction.** Selected issues become a targeted correction prompt that lists what already works so it is preserved, and asks the tool to verify each fix.
-5. **Compare.** Add the next version and see what improved, regressed, is still failing or is new, lined up by requirement.
+1. **Audit.** Paste a URL, no account needed. You get:
+   - markup checks, plus a crawl of linked pages (broken links, placeholder copy, reused titles);
+   - a headless browser at 390px and 1440px: overflow, console errors, failed requests, the mobile menu, screenshots;
+   - axe-core WCAG A/AA rules;
+   - a model review when configured.
+2. **Fix.** Selected issues become a fix prompt shaped for your builder:
+   - chat builders get small batched messages;
+   - coding agents get one task with self-checks.
+
+   It names what to keep, so working parts aren't touched.
+3. **Re-audit.** Add the next version, or call the deploy hook from CI. You see what improved and what regressed, a visual difference against the previous version or your reference images, and **fix success**: how many targeted issues were actually resolved.
+4. **Prove it.** Share a read-only report link with a client.
+
+**Optional:** add a brief (your goal, prompt and reference images) to check requirements too, not just quality.
 
 ## Honesty rules built into the code
 
@@ -119,6 +126,11 @@ Audits run after the response is sent (`after()`), record `running → complete 
 | Image and text/code audits (deterministic) | Implemented, e2e tested (image); unit tested (text/code) |
 | Model review of requirements (incl. screenshots and images) | Implemented; not live-tested |
 | Human verdicts on findings | Implemented, e2e tested |
+| Free URL audit without sign-up (guest accounts, upgraded on sign-up, merged on sign-in, cleaned after 7 days) | Implemented, e2e tested |
+| Crawl of linked pages, axe-core rules, mobile-menu interaction check | Implemented, e2e tested against a fixture site |
+| Builder-specific fix prompts (batched for chat builders), fix-success tracking | Implemented, unit + e2e tested |
+| Visual difference (versions and references) | Implemented, e2e tested |
+| Re-audit on deploy (`POST /api/hooks/:token`) | Implemented, e2e tested |
 | Reference images (used in model brief + visual audit) | Upload/remove e2e tested; model use not live-tested |
 | Correction prompts, version compare (+ inline delta vs previous), history, Markdown export | Implemented, e2e tested |
 | Read-only share links (hashed, rotatable, revocable, noindex) | Implemented, e2e + unit tested |

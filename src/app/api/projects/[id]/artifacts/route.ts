@@ -22,7 +22,7 @@ const Json = z.discriminatedUnion("kind", [
  */
 export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   const project = await requireProject(user.id, id);
-  await limits.audit(user.id);
+  await (user.isGuest ? limits.guestAudit(user.id) : limits.audit(user.id));
   const type = req.headers.get("content-type") ?? "";
   let artifact;
   if (type.startsWith("multipart/form-data")) {

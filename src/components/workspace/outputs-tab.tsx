@@ -6,7 +6,8 @@ import type { Artifact, Evaluation, Finding, Prompt } from "@/lib/db/schema";
 import { isFailing, isPassing } from "@/lib/engines/taxonomy";
 import { redundantCheckIds } from "@/lib/engines/improve";
 import { compareFindings } from "@/lib/engines/compare";
-import { api, Asterisk, CopyButton, Empty, ErrorNote, Field, MethodTag, SeverityTag, Spinner, StatusMark, useToast } from "../ui";
+import { PromptParts } from "../prompt-parts";
+import { api, Asterisk, Empty, ErrorNote, Field, MethodTag, SeverityTag, Spinner, StatusMark, useToast } from "../ui";
 import { fmtTime, latestEvaluation, type Ctx } from "./types";
 
 export function OutputsTab({ ctx }: { ctx: Ctx }) {
@@ -617,11 +618,10 @@ function CorrectionBuilder({ ctx, evaluation, selected }: { ctx: Ctx; evaluation
         <button type="button" className="btn btn-accent" disabled={!selected.length || busy} onClick={build}>
           {busy ? <Spinner /> : null} Create correction prompt
         </button>
-        {result ? <CopyButton text={result.content} label="Copy prompt" /> : null}
       </div>
       {result ? (
         <div className="rise-in mt-4">
-          <pre className="prompt-out max-h-80 overflow-auto rounded-md border border-line bg-bg p-4">{result.content}</pre>
+          <PromptParts content={result.content} parts={result.analysis.parts} />
         </div>
       ) : null}
     </section>
@@ -641,6 +641,7 @@ function VersionDelta({ ctx, artifact, findings }: { ctx: Ctx; artifact: Artifac
     findings,
   );
   const up = summary.improved + summary.newly_tested;
+  const fix = latestEvaluation(ws, artifact.id)?.summary.fixTracking;
   const down = summary.regressed + summary.new_issue;
   return (
     <button type="button" onClick={() => ctx.setTab("compare")} className="mt-3 inline-flex items-center gap-3 font-mono text-xs text-ink-3 hover:text-ink">
@@ -648,6 +649,11 @@ function VersionDelta({ ctx, artifact, findings }: { ctx: Ctx; artifact: Artifac
       <span className={up ? "text-pass" : ""}>↑ {up}</span>
       <span className={down ? "text-fail" : ""}>↓ {down}</span>
       <span>= {summary.still_failing} open</span>
+      {fix ? (
+        <span className={fix.resolved === fix.attempted ? "text-pass" : "text-ink-2"} title="Issues from the fix prompt that this version resolved">
+          fix {fix.resolved}/{fix.attempted}
+        </span>
+      ) : null}
     </button>
   );
 }

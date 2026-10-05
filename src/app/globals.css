@@ -77,9 +77,12 @@ body {
   color: #000;
 }
 
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+/* In the base layer so components can opt out (e.g. inputs inside a focus-styled box). */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
 }
 
 * {

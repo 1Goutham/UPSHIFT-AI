@@ -1,12 +1,13 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gt, lt } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import type { Artifact, EvaluationSummary } from "@/lib/db/schema";
+import { fixOutcome } from "@/lib/engines/improve";
 import { ApiError } from "@/lib/api";
 import { generateStructured, INJECTION_RULE, ProviderError, ProviderNotConfiguredError, providerStatus, untrusted, type ContentBlock } from "@/lib/ai/provider";
 import { getObject, putObject } from "@/lib/storage";
 import { safeFetch, UnsafeUrlError } from "@/lib/security/ssrf";
-import { runHtmlChecks } from "@/lib/engines/audit/html-checks";
+import { crawlFindings, extractInternalLinks, pageFacts, runHtmlChecks, type CrawledPage } from "@/lib/engines/audit/html-checks";
 import { runImageChecks, runTextChecks } from "@/lib/engines/audit/text-checks";
 import { browserFindings, runBrowser } from "@/lib/engines/audit/browser";
 import { linkRequirements, ModelAuditSchema, modelFindings, untestedFindings, type ReqSnapshot } from "@/lib/engines/audit/requirements";
@@ -76,7 +77,9 @@ export async function runEvaluation(userId: string, evaluationId: string) {
       limitations: result.limitations,
       screenshots: result.screenshots,
       model: result.model,
+      pages: result.pages,
     };
+    summary.fixTracking = await trackFix(project.id, project.targetTool, artifact, drafts);
     const ordered = drafts.sort(
       (a, b) =>
         Number(!isFailing(a.status)) - Number(!isFailing(b.status)) ||
@@ -120,6 +123,7 @@ type EvalResult = {
   limitations: string[];
   screenshots: { name: string; width: number; key: string }[];
   model?: string;
+  pages?: { url: string; status: number }[];
 };
 
 async function evaluate(userId: string, goal: string, contentType: string, artifact: Artifact, reqs: ReqSnapshot[]): Promise<EvalResult> {
@@ -129,6 +133,7 @@ async function evaluate(userId: string, goal: string, contentType: string, artif
   const screenshots: EvalResult["screenshots"] = [];
   const modelContent: ContentBlock[] = [];
   let materialNote = "";
+  let crawled: { url: string; status: number }[] | undefined;
 
   if (artifact.kind === "url") {
     const fetched = await safeFetch(artifact.sourceUrl!);
@@ -146,6 +151,17 @@ async function evaluate(userId: string, goal: string, contentType: string, artif
       methods.push({ id: "html", label: "Markup checks on served HTML", ran: false, note: `Response was ${fetched.contentType || "not HTML"}.` });
     }
 
+    if (isHtml) {
+      const html = fetched.body.toString("utf8");
+      const links = extractInternalLinks(html, fetched.finalUrl, 8);
+      if (links.length) {
+        const pages = await crawl(links);
+        findings.push(...crawlFindings(runHtmlChecks(html, fetched.finalUrl, fetched.status).facts.title, pages));
+        crawled = pages.map((p) => ({ url: p.url, status: p.status }));
+        methods.push({ id: "crawl", label: `${pages.length} linked page${pages.length === 1 ? "" : "s"} checked`, ran: true });
+      }
+    }
+
     const run = await runBrowser(fetched.finalUrl);
     findings.push(...browserFindings(run));
     methods.push({ id: "browser", label: "Headless Chromium at 390px and 1440px", ran: run.available, note: run.reason });
@@ -160,7 +176,7 @@ async function evaluate(userId: string, goal: string, contentType: string, artif
     if (!run.available) limitations.push("No browser run: responsive layout, console errors and visual review of the rendered page were not tested.");
     materialNote = `Website ${fetched.finalUrl} (HTTP ${fetched.status}).`;
     if (pageText) modelContent.push({ type: "text", text: untrusted("visible page text", pageText.slice(0, 20_000)) });
-    limitations.push("Only the landing URL was loaded. Other pages, logged-in areas and interactions (hover, forms, menus) were not exercised.");
+    limitations.push("Logged-in areas, form submissions and hover states were not exercised.");
   } else if (artifact.kind === "image") {
     const data = await getObject(artifact.storageKey!);
     findings.push(...runImageChecks(artifact.meta, artifact.sizeBytes ?? data.length));
@@ -245,7 +261,27 @@ async function evaluate(userId: string, goal: string, contentType: string, artif
     ),
   );
   if (!reqs.length) limitations.push("No confirmed requirements, so findings are generic checks only. Confirm requirements in the brief for a targeted audit.");
-  return { findings, methods, limitations, screenshots, model };
+  return { findings, methods, limitations, screenshots, model, pages: crawled };
+}
+
+/** Fetch linked pages (same rules as the main fetch), four at a time. */
+async function crawl(urls: string[]): Promise<CrawledPage[]> {
+  const out: CrawledPage[] = [];
+  for (let i = 0; i < urls.length; i += 4) {
+    const batch = await Promise.all(
+      urls.slice(i, i + 4).map(async (url): Promise<CrawledPage> => {
+        try {
+          const r = await safeFetch(url, { maxBytes: 1024 * 1024, timeoutMs: 12_000 });
+          if (/html/i.test(r.contentType) && r.status < 400) return { url, status: r.status, ...pageFacts(r.body.toString("utf8")) };
+          return { url, status: r.status };
+        } catch (err) {
+          return { url, status: 0, error: (err as Error).message.slice(0, 120) };
+        }
+      }),
+    );
+    out.push(...batch);
+  }
+  return out;
 }
 
 /** A human verdict on a finding. Stored as method "human" so it is never confused with automated results. */
@@ -263,4 +299,29 @@ export async function setHumanVerdict(userId: string, projectId: string, finding
     .set({ status: verdict, method: "human", evidence: note ? `Your review: ${note}` : "Checked by you.", severity: verdict === "verified_fail" ? "medium" : "info" })
     .where(eq(schema.findings.id, findingId));
   await logEvent(userId, projectId, "finding.reviewed", { findingId, verdict, previous: row.f.status });
+}
+
+/**
+ * If a correction prompt was created after the previous version and before
+ * this one, record how many of its issues this version resolved.
+ */
+async function trackFix(projectId: string, tool: string, artifact: Artifact, drafts: FindingDraft[]): Promise<EvaluationSummary["fixTracking"]> {
+  const db = await getDb();
+  const [prev] = await db
+    .select()
+    .from(schema.artifacts)
+    .where(and(eq(schema.artifacts.projectId, projectId), lt(schema.artifacts.version, artifact.version)))
+    .orderBy(desc(schema.artifacts.version))
+    .limit(1);
+  if (!prev) return undefined;
+  const [correction] = await db
+    .select()
+    .from(schema.prompts)
+    .where(and(eq(schema.prompts.projectId, projectId), eq(schema.prompts.kind, "correction"), gt(schema.prompts.createdAt, prev.createdAt), lt(schema.prompts.createdAt, artifact.createdAt)))
+    .orderBy(desc(schema.prompts.createdAt))
+    .limit(1);
+  const keys = correction?.analysis.checkKeys;
+  if (!correction || !keys?.length) return undefined;
+  const outcome = fixOutcome(keys, drafts.map((d) => ({ checkKey: d.checkKey, status: enforceStatus(d).status })));
+  return { correctionId: correction.id, fromVersion: correction.analysis.sourceVersion ?? prev.version, tool, ...outcome };
 }

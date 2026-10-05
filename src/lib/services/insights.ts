@@ -63,7 +63,24 @@ export async function computeInsights(userId: string) {
   const methodCounts = { deterministic: 0, browser: 0, model: 0, human: 0 } as Record<string, number>;
   for (const f of latestFindings) methodCounts[f.method] = (methodCounts[f.method] ?? 0) + 1;
 
+  // Fix success: issues a fix prompt targeted that the next version resolved.
+  const byTool = new Map<string, { attempted: number; resolved: number }>();
+  const fix = { attempted: 0, resolved: 0, rounds: 0 };
+  for (const e of complete) {
+    const t = e.summary.fixTracking;
+    if (!t) continue;
+    fix.attempted += t.attempted;
+    fix.resolved += t.resolved;
+    fix.rounds++;
+    const key = t.tool.trim() || "Unspecified";
+    const r = byTool.get(key) ?? { attempted: 0, resolved: 0 };
+    r.attempted += t.attempted;
+    r.resolved += t.resolved;
+    byTool.set(key, r);
+  }
+
   return {
+    fix: { ...fix, byTool: [...byTool.entries()].sort((a, b) => b[1].attempted - a[1].attempted) },
     totals: { projects: projects.length, originals: originals.length, outputs: artifacts.length, audits: complete.length, corrections: prompts.filter((p) => p.kind === "correction").length },
     gaps,
     failingByCategory,

@@ -10,7 +10,7 @@ const Body = z.object({ useModel: z.boolean().default(true) });
 export const POST = authed<{ id: string; pid: string }>(async (req, user, { id, pid }) => {
   const project = await requireProject(user.id, id);
   const { useModel } = await parseBody(req, Body);
-  if (useModel && providerStatus().configured) await limits.model(user.id);
+  if (useModel && providerStatus().configured) await (user.isGuest ? limits.guestModel(user.id) : limits.model(user.id));
   return { prompt: await optimizePrompt(user.id, project, pid, useModel) };
 });
 

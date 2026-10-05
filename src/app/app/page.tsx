@@ -6,6 +6,7 @@ import { listProjects } from "@/lib/repo/projects";
 import { CONTENT_TYPES } from "@/lib/engines/taxonomy";
 import { providerStatus } from "@/lib/ai/provider";
 import { NewProject } from "@/components/new-project";
+import { QuickAudit } from "@/components/quick-audit";
 import { Empty } from "@/components/ui";
 
 export const metadata = { title: "Projects" };
@@ -46,8 +47,9 @@ export default async function ProjectsPage() {
         ) : null}
       </div>
 
-      <div className="mt-8">
-        <NewProject startOpen={projects.length === 0} playbooks={playbooks} />
+      <div className="mt-8 space-y-4">
+        <QuickAudit compact autoFocus={projects.length === 0} />
+        <NewProject startOpen={false} playbooks={playbooks} />
       </div>
 
       <section className="mt-10" aria-labelledby="list-h">

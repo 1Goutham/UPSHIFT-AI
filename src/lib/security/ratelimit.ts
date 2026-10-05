@@ -24,4 +24,11 @@ export const limits = {
   model: (userId: string) => rateLimit(`model:${userId}`, 60, 60 * 60_000),
   audit: (userId: string) => rateLimit(`audit:${userId}`, 30, 60 * 60_000),
   share: (ip: string) => rateLimit(`share:${ip}`, 120, 10 * 60_000),
+  /** New anonymous visitors per IP. */
+  guest: (ip: string) => rateLimit(`guest:${ip}`, Number(process.env.UPSHIFT_GUEST_RATE_LIMIT) || 5, 60 * 60_000),
+  /** Audits a guest can run before signing up. */
+  guestAudit: (userId: string) => rateLimit(`gaudit:${userId}`, 6, 24 * 60 * 60_000),
+  /** Model calls a guest can make before signing up (they cost real money). */
+  guestModel: (userId: string) => rateLimit(`gmodel:${userId}`, 10, 24 * 60 * 60_000),
+  hook: (projectId: string) => rateLimit(`hook:${projectId}`, 30, 60 * 60_000),
 };

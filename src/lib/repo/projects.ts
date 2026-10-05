@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { ApiError } from "@/lib/api";
 import { deleteObject } from "@/lib/storage";
@@ -71,7 +71,7 @@ export async function getRequirements(projectId: string) {
 export async function getWorkspace(userId: string, projectId: string) {
   const project = await requireProject(userId, projectId);
   const db = await getDb();
-  const [requirements, prompts, artifacts, evaluations, events, references, shareRows] = await Promise.all([
+  const [requirements, prompts, artifacts, evaluations, events, references, shareRows, hookRows] = await Promise.all([
     getRequirements(projectId),
     db.select().from(schema.prompts).where(eq(schema.prompts.projectId, projectId)).orderBy(desc(schema.prompts.createdAt)),
     db.select().from(schema.artifacts).where(eq(schema.artifacts.projectId, projectId)).orderBy(desc(schema.artifacts.version)),
@@ -79,12 +79,28 @@ export async function getWorkspace(userId: string, projectId: string) {
     db.select().from(schema.events).where(eq(schema.events.projectId, projectId)).orderBy(desc(schema.events.createdAt)).limit(80),
     db.select().from(schema.referenceImages).where(eq(schema.referenceImages.projectId, projectId)).orderBy(asc(schema.referenceImages.createdAt)),
     db.select({ id: schema.shares.id }).from(schema.shares).where(eq(schema.shares.projectId, projectId)).limit(1),
+    db.select({ lastRunAt: schema.hooks.lastRunAt }).from(schema.hooks).where(eq(schema.hooks.projectId, projectId)).limit(1),
   ]);
   const evalIds = evaluations.map((e) => e.id);
   const findings = evalIds.length
     ? await db.select().from(schema.findings).where(inArray(schema.findings.evaluationId, evalIds)).orderBy(asc(schema.findings.position))
     : [];
-  return { project, requirements, prompts, artifacts, evaluations, findings, events, references, shared: shareRows.length > 0 };
+  return { project, requirements, prompts, artifacts, evaluations, findings, events, references, shared: shareRows.length > 0, hook: hookRows[0] ?? null };
 }
 
 export type Workspace = Awaited<ReturnType<typeof getWorkspace>>;
+
+/** Remove guest accounts older than a week, with their files. Bounded per call. */
+export async function cleanupGuests(limit = 10) {
+  const db = await getDb();
+  const cutoff = new Date(Date.now() - 7 * 86_400_000);
+  const old = await db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(and(eq(schema.users.isGuest, true), lt(schema.users.createdAt, cutoff)))
+    .limit(limit);
+  for (const u of old) {
+    for (const p of await listProjects(u.id)) await deleteProject(u.id, p.id).catch(() => {});
+    await db.delete(schema.users).where(eq(schema.users.id, u.id));
+  }
+}

@@ -26,6 +26,8 @@ export const users = pgTable(
     email: text("email").notNull(),
     name: text("name").notNull(),
     passwordHash: text("password_hash").notNull(),
+    /** Anonymous visitor running a free audit; upgraded in place on sign-up. */
+    isGuest: boolean("is_guest").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_idx").on(t.email)],
@@ -131,6 +133,12 @@ export type PromptAnalysis = {
   instruction?: string;
   /** Issue ids a correction prompt was built from. */
   findingIds?: string[];
+  /** Their check keys, to match them in the next version's audit. */
+  checkKeys?: string[];
+  /** Version the correction was built from. */
+  sourceVersion?: number;
+  /** Separate messages when the fixes were split into batches. */
+  parts?: string[];
 };
 
 export const prompts = pgTable(
@@ -211,6 +219,10 @@ export type EvaluationSummary = {
   screenshots?: { name: string; width: number; key: string }[];
   /** Model used for model-backed parts, if any. */
   model?: string;
+  /** Outcome of the fix prompt that preceded this version, if any. */
+  fixTracking?: { correctionId: string; fromVersion: number; attempted: number; resolved: number; stillFailing: number; tool: string };
+  /** Extra pages checked during a crawl. */
+  pages?: { url: string; status: number }[];
 };
 
 export const evaluations = pgTable(
@@ -336,6 +348,21 @@ export const shares = pgTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("shares_token_idx").on(t.tokenHash), index("shares_project_idx").on(t.projectId)],
+);
+
+/** Re-audit webhooks (call after each deploy). Only a SHA-256 of the token is stored. */
+export const hooks = pgTable(
+  "hooks",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("hooks_token_idx").on(t.tokenHash), index("hooks_project_idx").on(t.projectId)],
 );
 
 /** Sliding-window rate limit hits, shared across server instances. */

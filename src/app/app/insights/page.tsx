@@ -3,7 +3,7 @@ import { currentUser } from "@/lib/auth/session";
 import { computeInsights } from "@/lib/services/insights";
 import { Empty } from "@/components/ui";
 
-export const metadata = { title: "Insights" };
+export const metadata = { title: "Results" };
 
 export default async function InsightsPage() {
   const user = (await currentUser())!;
@@ -11,9 +11,9 @@ export default async function InsightsPage() {
   return (
     <main className="mx-auto max-w-4xl px-5 py-8 md:px-10 md:py-10">
       <h1 className="font-mono text-2xl">
-        <span className="text-ink-3">[</span> Insights <span className="text-ink-3">]</span>
+        <span className="text-ink-3">[</span> Results <span className="text-ink-3">]</span>
       </h1>
-      <p className="mt-1 text-sm text-ink-3">Counted from your own prompts and audits.</p>
+      
 
       {!data ? (
         <div className="mt-8">
@@ -21,6 +21,35 @@ export default async function InsightsPage() {
         </div>
       ) : (
         <div className="mt-8 space-y-12">
+          <section>
+            <h2 className="eyebrow mb-3">Fix success</h2>
+            {data.fix.attempted ? (
+              <>
+                <p className="font-mono text-5xl">
+                  {Math.round((data.fix.resolved / data.fix.attempted) * 100)}
+                  <span className="text-2xl text-ink-3">%</span>
+                </p>
+                <p className="mt-2 text-sm text-ink-3">
+                  {data.fix.resolved} of {data.fix.attempted} issues resolved in the next version · {data.fix.rounds} round{data.fix.rounds === 1 ? "" : "s"}
+                </p>
+                {data.fix.byTool.length > 1 || data.fix.byTool[0]?.[0] !== "Unspecified" ? (
+                  <ul className="mt-5 divide-y divide-line border-y border-line">
+                    {data.fix.byTool.map(([tool, r]) => (
+                      <li key={tool} className="flex justify-between py-2 text-sm">
+                        <span className="text-ink-2">{tool}</span>
+                        <span className="font-mono">
+                          {Math.round((r.resolved / r.attempted) * 100)}% <span className="text-ink-3">({r.resolved}/{r.attempted})</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-sm text-ink-3">Create a fix prompt, apply it, then audit the next version.</p>
+            )}
+          </section>
+
           <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-5">
             {(
               [

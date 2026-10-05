@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { BookmarkPlus, Download, Link2, Link2Off, MoreHorizontal, Trash2 } from "lucide-react";
+import { BookmarkPlus, Download, Link2, Link2Off, MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
 import { CONTENT_TYPES } from "@/lib/engines/taxonomy";
-import { api, Confirm, Spinner, useToast } from "../ui";
+import { api, Confirm, CopyButton, Spinner, useToast } from "../ui";
 import { BriefTab } from "./brief-tab";
 import { PromptTab } from "./prompt-tab";
 import { OutputsTab } from "./outputs-tab";
@@ -13,12 +13,13 @@ import { HistoryTab } from "./history-tab";
 import { NextStep } from "./next-step";
 import { Composer } from "./composer";
 import type { Ctx, Provider, Tab, WS } from "./types";
+import { BuilderOptions } from "../builder-options";
 
 const TABS: { id: Tab; label: string; n?: string }[] = [
-  { id: "brief", label: "Brief", n: "01" },
-  { id: "prompt", label: "Prompt", n: "02" },
-  { id: "outputs", label: "Outputs", n: "03" },
-  { id: "compare", label: "Compare", n: "04" },
+  { id: "outputs", label: "Audit", n: "01" },
+  { id: "compare", label: "Compare", n: "02" },
+  { id: "brief", label: "Brief", n: "03" },
+  { id: "prompt", label: "Prompt", n: "04" },
   { id: "history", label: "History" },
 ];
 
@@ -34,8 +35,7 @@ export function Workspace({ initial, provider }: { initial: WS; provider: Provid
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab") as Tab | null;
     if (t && TABS.some((x) => x.id === t)) setTabState(t);
-    else if (initial.artifacts.length) setTabState("outputs");
-    else if (initial.requirements.some((r) => r.status === "confirmed")) setTabState("prompt");
+    else if (initial.artifacts.length || (!initial.project.goal.trim() && !initial.prompts.length)) setTabState("outputs");
   }, [initial]);
 
   const setTab = useCallback((t: Tab) => {
@@ -86,6 +86,23 @@ export function Workspace({ initial, provider }: { initial: WS; provider: Provid
         () => toast(rotate ? "New link copied. The old one no longer works." : "Read-only link copied."),
         () => window.prompt("Copy this link", link),
       );
+      await reload();
+    } catch (err) {
+      toast((err as Error).message, "error");
+    }
+  };
+
+  const [hookUrl, setHookUrl] = useState("");
+  const toggleHook = async () => {
+    setMenu(false);
+    try {
+      if (ws.hook) {
+        await api(`/api/projects/${ws.project.id}/hook`, { method: "DELETE" });
+        toast("Re-audit on deploy turned off.");
+      } else {
+        const { path } = await api<{ path: string }>(`/api/projects/${ws.project.id}/hook`, { method: "POST" });
+        setHookUrl(`${window.location.origin}${path}`);
+      }
       await reload();
     } catch (err) {
       toast((err as Error).message, "error");
@@ -178,6 +195,11 @@ export function Workspace({ initial, provider }: { initial: WS; provider: Provid
                     <Link2Off className="h-4 w-4" /> Stop sharing
                   </button>
                 ) : null}
+                {ws.artifacts.some((a) => a.kind === "url") ? (
+                  <button type="button" className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm text-ink-2 hover:bg-panel hover:text-ink" onClick={toggleHook}>
+                    <RefreshCw className="h-4 w-4" /> {ws.hook ? "Stop re-audit on deploy" : "Re-audit on deploy"}
+                  </button>
+                ) : null}
                 <button type="button" className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm text-ink-2 hover:bg-panel hover:text-ink" onClick={savePlaybook}>
                   <BookmarkPlus className="h-4 w-4" /> Save as playbook
                 </button>
@@ -210,6 +232,8 @@ export function Workspace({ initial, provider }: { initial: WS; provider: Provid
       </div>
 
       <Composer ctx={ctx} />
+
+      <HookDialog url={hookUrl} onClose={() => setHookUrl("")} />
 
       <Confirm
         open={confirmDelete}
@@ -295,8 +319,9 @@ function ToolInput({ value, onSave }: { value: string; onSave: (v: string) => vo
     <label className="field inline-block">
       <input
         value={v}
-        placeholder="Target AI tool (optional)"
+        placeholder="Built with…"
         aria-label="Target AI tool"
+        list="builders"
         maxLength={80}
         onChange={(e) => setV(e.target.value)}
         onBlur={() => v.trim() !== value && onSave(v.trim())}
@@ -304,6 +329,34 @@ function ToolInput({ value, onSave }: { value: string; onSave: (v: string) => vo
         className="w-48 border-0 bg-transparent p-0 text-xs text-ink-2 outline-none placeholder:text-ink-3"
       />
       <span className="field-line" aria-hidden />
+      <BuilderOptions />
     </label>
+  );
+}
+
+/** Shows the hook URL once, with the one line to add after a deploy. */
+function HookDialog({ url, onClose }: { url: string; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (url && !d.open) d.showModal();
+    if (!url && d.open) d.close();
+  }, [url]);
+  const cmd = `curl -fsS -X POST ${url}`;
+  return (
+    <dialog ref={ref} onClose={onClose} className="m-auto w-[min(560px,calc(100vw-2rem))] rounded-lg border border-line bg-panel p-0 text-ink">
+      <div className="space-y-4 p-5">
+        <h2 className="text-base font-medium">Re-audit on deploy</h2>
+        <p className="text-sm text-ink-3">Run this after each deploy (CI step or deploy notification). Shown once.</p>
+        <pre className="prompt-out overflow-x-auto rounded-md border border-line bg-bg p-3 text-xs">{cmd}</pre>
+        <div className="flex justify-end gap-2">
+          <CopyButton text={cmd} label="Copy" />
+          <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
+    </dialog>
   );
 }

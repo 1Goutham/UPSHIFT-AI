@@ -10,7 +10,7 @@ const Body = z.object({ prompt: z.string().max(20000).default(""), useModel: z.b
 export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   const project = await requireProject(user.id, id);
   const body = await parseBody(req, Body);
-  if (body.useModel && providerStatus().configured) await limits.model(user.id);
+  if (body.useModel && providerStatus().configured) await (user.isGuest ? limits.guestModel(user.id) : limits.model(user.id));
   const brief = await generateBrief(user.id, project, body);
   return { brief };
 });

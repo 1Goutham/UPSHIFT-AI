@@ -37,7 +37,7 @@ export async function destroySession() {
   jar.delete(SESSION_COOKIE);
 }
 
-export type SessionUser = Pick<User, "id" | "email" | "name">;
+export type SessionUser = Pick<User, "id" | "email" | "name" | "isGuest">;
 
 /** The signed-in user, or null. Never trusts anything but the session table. */
 export async function currentUser(): Promise<SessionUser | null> {
@@ -46,10 +46,26 @@ export async function currentUser(): Promise<SessionUser | null> {
   if (!token) return null;
   const db = await getDb();
   const rows = await db
-    .select({ id: schema.users.id, email: schema.users.email, name: schema.users.name })
+    .select({ id: schema.users.id, email: schema.users.email, name: schema.users.name, isGuest: schema.users.isGuest })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
     .where(and(eq(schema.sessions.id, sha256(token)), gt(schema.sessions.expiresAt, new Date())))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * Anonymous visitor: a real (but temporary) account so the whole app works
+ * before sign-up. Signing up later upgrades this same row; signing in to an
+ * existing account moves its projects over.
+ */
+export async function createGuest(): Promise<SessionUser> {
+  const db = await getDb();
+  const id = randomBytes(12).toString("hex");
+  const [user] = await db
+    .insert(schema.users)
+    .values({ email: `guest-${id}@guest.invalid`, name: "Guest", passwordHash: "!", isGuest: true })
+    .returning({ id: schema.users.id, email: schema.users.email, name: schema.users.name, isGuest: schema.users.isGuest });
+  await createSession(user.id);
+  return user;
 }

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { authed, ApiError, parseBody } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
-import { buildCorrectionPrompt, prioritise, redundantCheckIds } from "@/lib/engines/improve";
+import { buildCorrectionPrompts, prioritise, redundantCheckIds } from "@/lib/engines/improve";
 import { getRequirements, logEvent, requireProject, touchProject } from "@/lib/repo/projects";
 
 const Body = z.object({
@@ -33,7 +33,7 @@ export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   const selected = prioritise(selectedRaw.filter((f) => !redundant.has(f.id)), priorities);
   const skipped = selectedRaw.length - selected.length;
   if (!selected.length) throw new ApiError(400, "Selected items are not failing, so there is nothing to correct.");
-  const content = buildCorrectionPrompt({
+  const parts = buildCorrectionPrompts({
     goal: project.goal,
     targetTool: project.targetTool,
     artifactLabel: KIND_LABEL[artifact.kind] ?? "result",
@@ -47,9 +47,9 @@ export const POST = authed<{ id: string }>(async (req, user, { id }) => {
       projectId: project.id,
       kind: "correction",
       targetTool: project.targetTool,
-      content,
+      content: parts.join("\n\n"),
       method: "deterministic",
-      analysis: { findingIds: selected.map((f) => f.id), instruction: body.extra || undefined, changes: [{ change: `Built from ${selected.length} issue(s) in version ${artifact.version}`, reason: "Targeted fix; everything else is to be preserved." }] },
+      analysis: { parts: parts.length > 1 ? parts : undefined, findingIds: selected.map((f) => f.id), checkKeys: selected.map((f) => f.checkKey), sourceVersion: artifact.version, instruction: body.extra || undefined, changes: [{ change: `Built from ${selected.length} issue(s) in version ${artifact.version}`, reason: "Targeted fix; everything else is to be preserved." }] },
     })
     .returning();
   await logEvent(user.id, project.id, "correction.created", { promptId: prompt.id, issues: selected.length, version: artifact.version });

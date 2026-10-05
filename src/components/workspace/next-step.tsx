@@ -12,31 +12,28 @@ function nextStep(ctx: Ctx): Step {
   const { ws } = ctx;
   const confirmed = ws.requirements.filter((r) => r.status === "confirmed");
   const proposed = ws.requirements.filter((r) => r.status === "proposed");
-  const original = ws.prompts.find((p) => p.kind === "original");
-  const improved = ws.prompts.find((p) => p.kind === "optimized" || p.kind === "refined");
   const latest = ws.artifacts[0];
   const ev = latest ? latestEvaluation(ws, latest.id) : null;
   const correction = ws.prompts.find((p) => p.kind === "correction");
 
-  if (!ws.project.goal.trim() && !original) return { title: "Describe the result you want", tab: "brief", action: "Brief" };
-  if (!ws.project.brief.generatedAt && !confirmed.length) return { title: "Build the brief", tab: "brief", action: "Brief" };
-  if (proposed.length) return { title: `Review ${proposed.length} suggested requirement${proposed.length === 1 ? "" : "s"}`, tab: "brief", action: "Review" };
-  if (!confirmed.length) return { title: "Confirm at least one requirement", tab: "brief", action: "Brief" };
-  if (!latest && original && !improved) return { title: "Improve your prompt", tab: "prompt", action: "Prompt" };
-  if (!latest) return { title: "Add what the AI produced", tab: "outputs", action: "Add output" };
+  if (!latest) {
+    if (proposed.length) return { title: `Review ${proposed.length} suggested requirement${proposed.length === 1 ? "" : "s"}`, tab: "brief", action: "Review" };
+    return { title: "Add your site to audit", tab: "outputs", action: "Add" };
+  }
   if (ev?.status === "running") return { title: `Auditing v${latest.version}…` };
   if (ev?.status === "failed") return { title: `Audit of v${latest.version} failed`, tab: "outputs", action: "Retry" };
-  if (ev?.status === "complete") {
-    const failing = ws.findings.filter((f) => f.evaluationId === ev.id && isFailing(f.status));
-    const untested = ws.findings.filter((f) => f.evaluationId === ev.id && f.checkKey.startsWith("req:") && f.status === "not_tested");
-    const correctionIsNewer = correction && new Date(correction.createdAt) > new Date(latest.createdAt);
-    if (failing.length && correctionIsNewer) return { title: `Run the correction, then add v${latest.version + 1}`, tab: "outputs", action: "Add version" };
-    if (failing.length) return { title: `Fix ${failing.length} issue${failing.length === 1 ? "" : "s"} in v${latest.version}`, tab: "outputs", action: "Findings" };
-    if (untested.length) return { title: `Check ${untested.length} untested requirement${untested.length === 1 ? "" : "s"}`, tab: "outputs", action: "Review" };
-    if (ws.artifacts.length > 1) return { title: "Compare versions", tab: "compare", action: "Compare" };
-    return { title: "Nothing failing" };
-  }
-  return { title: "Run the audit", tab: "outputs", action: "Outputs" };
+  if (ev?.status !== "complete") return { title: "Run the audit", tab: "outputs", action: "Audit" };
+
+  const failing = ws.findings.filter((f) => f.evaluationId === ev.id && isFailing(f.status));
+  const untested = ws.findings.filter((f) => f.evaluationId === ev.id && f.checkKey.startsWith("req:") && f.status === "not_tested");
+  const correctionIsNewer = correction && new Date(correction.createdAt) > new Date(latest.createdAt);
+  if (failing.length && correctionIsNewer) return { title: `Paste the fix into ${ws.project.targetTool || "your builder"}, then re-audit`, tab: "outputs", action: "Add version" };
+  if (failing.length) return { title: `Fix ${failing.length} issue${failing.length === 1 ? "" : "s"}`, tab: "outputs", action: "Findings" };
+  if (proposed.length) return { title: `Review ${proposed.length} suggested requirement${proposed.length === 1 ? "" : "s"}`, tab: "brief", action: "Review" };
+  if (!confirmed.length) return { title: "Add what you asked for, to check it too", tab: "brief", action: "Brief" };
+  if (untested.length) return { title: `Check ${untested.length} untested requirement${untested.length === 1 ? "" : "s"}`, tab: "outputs", action: "Review" };
+  if (ws.artifacts.length > 1) return { title: "Compare versions", tab: "compare", action: "Compare" };
+  return { title: "All checks pass" };
 }
 
 /** One line: what to do next. */

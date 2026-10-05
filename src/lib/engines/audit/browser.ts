@@ -32,7 +32,23 @@ export type BrowserRun = {
   failedRequests: string[];
   blockedRequests: string[];
   renderedText: string;
+  /** axe-core WCAG A/AA violations from the desktop run. */
+  axe?: { violations: AxeViolation[] } | { error: string };
+  /** Mobile navigation: is it reachable, and does the menu button work? */
+  mobileMenu?: { state: "visible" | "opened" | "dead_button" | "no_button" | "no_nav" | "error"; links: number; detail?: string };
 };
+
+export type AxeViolation = { id: string; impact: string | null; help: string; helpUrl: string; nodes: number; targets: string[] };
+
+// Read once; injected into audited pages over CDP (not affected by their CSP).
+let axeSource: string | null = null;
+async function getAxeSource() {
+  if (axeSource === null) {
+    const mod = (await import("axe-core")) as unknown as { source: string; default?: { source: string } };
+    axeSource = mod.source ?? mod.default?.source ?? "";
+  }
+  return axeSource;
+}
 
 const MAX_SHOT_HEIGHT = 5000;
 
@@ -97,6 +113,7 @@ export async function runBrowser(url: string): Promise<BrowserRun> {
         deviceScaleFactor: 1,
         acceptDownloads: false,
         serviceWorkers: "block",
+        bypassCSP: true,
         userAgent: vp.isMobile
           ? "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 UPSHIFT-Auditor"
           : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36 UPSHIFT-Auditor",
@@ -153,7 +170,12 @@ export async function runBrowser(url: string): Promise<BrowserRun> {
         .screenshot({ type: "jpeg", quality: 72, fullPage: true, clip: { x: 0, y: 0, width: vp.width, height: shotHeight }, timeout: 15_000 })
         .catch(() => undefined);
       run.viewports.push({ name: vp.name, width: vp.width, height: vp.height, overflowPx: metrics.overflow, loadMs, screenshot: screenshot ? Buffer.from(screenshot) : undefined });
-      if (vp.name === "desktop") run.renderedText = metrics.text.slice(0, 30_000);
+      if (vp.name === "desktop") {
+        run.renderedText = metrics.text.slice(0, 30_000);
+        run.axe = await runAxe(page);
+      } else {
+        run.mobileMenu = await checkMobileMenu(page);
+      }
       await context.close();
     }
   } finally {
@@ -161,6 +183,66 @@ export async function runBrowser(url: string): Promise<BrowserRun> {
   }
   return run;
 }
+
+async function runAxe(page: import("playwright-core").Page): Promise<BrowserRun["axe"]> {
+  try {
+    await page.evaluate(await getAxeSource());
+    const result = await page.evaluate(async () => {
+      const w = window as unknown as { axe: { run: (ctx: Document, opts: object) => Promise<{ violations: { id: string; impact: string | null; help: string; helpUrl: string; nodes: { target: string[] }[] }[] }> } };
+      const r = await w.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }, resultTypes: ["violations"] });
+      return r.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, helpUrl: v.helpUrl, nodes: v.nodes.length, targets: v.nodes.slice(0, 5).map((n) => n.target.join(" ")) }));
+    });
+    return { violations: result };
+  } catch (err) {
+    return { error: (err as Error).message.split("\n")[0].slice(0, 200) };
+  }
+}
+
+/**
+ * On a phone: are nav links visible, or is there a menu button that reveals
+ * them? Clicks only buttons (never links or form submits) so nothing on the
+ * audited site is changed.
+ */
+async function checkMobileMenu(page: import("playwright-core").Page): Promise<BrowserRun["mobileMenu"]> {
+  const count = () =>
+    page.evaluate(() => {
+      const vis = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && Number(s.opacity) > 0.05 && r.right > 0 && r.left < innerWidth;
+      };
+      const links = [...document.querySelectorAll("header a[href], nav a[href], [role=navigation] a[href]")];
+      return { total: links.length, visible: links.filter(vis).length };
+    });
+  try {
+    const before = await count();
+    if (before.total === 0) return { state: "no_nav", links: 0 };
+    if (before.visible >= Math.min(before.total, 2)) return { state: "visible", links: before.visible };
+    const marked = await page.evaluate(() => {
+      const sel = 'header button, nav button, button[aria-controls], button[aria-expanded], [role=button][aria-expanded], button[aria-label*="menu" i], button[class*="menu" i], button[class*="burger" i]';
+      const el = [...document.querySelectorAll(sel)].find((e) => {
+        const r = e.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== "hidden";
+      });
+      if (!el) return false;
+      el.setAttribute("data-upshift-menu", "1");
+      return true;
+    });
+    if (!marked) return { state: "no_button", links: before.visible, detail: `${before.total - before.visible} of ${before.total} nav links hidden` };
+    await page.click("[data-upshift-menu]", { timeout: 3000 });
+    await page.waitForTimeout(600);
+    const after = await count();
+    return after.visible > before.visible
+      ? { state: "opened", links: after.visible, detail: `${before.visible} → ${after.visible} visible links after tapping the menu button` }
+      : { state: "dead_button", links: after.visible, detail: `Tapping the menu button left ${after.visible} of ${after.total} links visible` };
+  } catch (err) {
+    return { state: "error", links: 0, detail: (err as Error).message.split("\n")[0].slice(0, 160) };
+  }
+}
+
+// Rules the markup checks already report (kept there so requirement links keep working).
+const AXE_DUPLICATES = new Set(["image-alt", "html-has-lang", "label", "link-name", "button-name"]);
+const IMPACT_SEVERITY: Record<string, FindingDraft["severity"]> = { critical: "high", serious: "high", moderate: "medium", minor: "low" };
 
 export function browserFindings(run: BrowserRun): FindingDraft[] {
   if (!run.available) {
@@ -243,6 +325,57 @@ export function browserFindings(run: BrowserRun): FindingDraft[] {
       method: "browser",
       category: "technical",
     });
+
+  if (run.axe && "violations" in run.axe) {
+    const vs = run.axe.violations.filter((v) => !AXE_DUPLICATES.has(v.id));
+    for (const v of vs.slice(0, 12))
+      out.push({
+        checkKey: `axe:${v.id}`,
+        title: v.help,
+        detail: `${v.nodes} element${v.nodes === 1 ? "" : "s"} (axe-core rule ${v.id}).`,
+        status: "verified_fail",
+        severity: IMPACT_SEVERITY[v.impact ?? ""] ?? "medium",
+        evidence: v.targets.join("\n"),
+        recommendation: `Fix per ${v.helpUrl}`,
+        verification: "Re-run the audit; the axe-core rule should no longer report these elements.",
+        method: "browser",
+        category: "accessibility",
+      });
+    out.push({
+      checkKey: "axe:summary",
+      title: "Automated accessibility rules (WCAG A/AA)",
+      detail: vs.length ? `${vs.length} rule${vs.length === 1 ? "" : "s"} failed.` : "No violations found by axe-core. Automated rules catch only part of accessibility issues.",
+      status: vs.length ? "verified_fail" : "verified_pass",
+      severity: vs.length ? "medium" : "info",
+      method: "browser",
+      category: "accessibility",
+    });
+  } else if (run.axe && "error" in run.axe) {
+    out.push({ checkKey: "axe:summary", title: "Automated accessibility rules (WCAG A/AA)", detail: `Could not run: ${run.axe.error}`, status: "unable_to_verify", severity: "info", method: "browser", category: "accessibility" });
+  }
+
+  const m = run.mobileMenu;
+  if (m && m.state !== "no_nav") {
+    const map = {
+      visible: ["verified_pass", "info", `${m.links} navigation links visible at 390px.`],
+      opened: ["verified_pass", "info", m.detail ?? "Menu opens."],
+      dead_button: ["likely_issue", "high", m.detail ?? "The menu button did not reveal navigation."],
+      no_button: ["likely_issue", "high", `Navigation is hidden on phones and no menu button was found (${m.detail}).`],
+      error: ["unable_to_verify", "info", m.detail ?? "Could not test."],
+    } as const;
+    const [status, severity, detail] = map[m.state as keyof typeof map];
+    out.push({
+      checkKey: "browser:mobile_menu",
+      title: "Navigation works on phones",
+      detail,
+      status,
+      severity,
+      recommendation: status === "likely_issue" ? "Make the navigation reachable at phone widths: a visible menu button that toggles the links (and sets aria-expanded)." : "",
+      verification: "At 390px wide, tap the menu button and confirm the links appear and work.",
+      method: "browser",
+      category: "responsive",
+    });
+  }
 
   if (desktop)
     out.push({

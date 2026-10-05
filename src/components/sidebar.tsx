@@ -3,19 +3,17 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BookMarked, Brain, FolderKanban, LineChart, LogOut, Menu, Moon, Settings, Sun, X } from "lucide-react";
+import { FolderKanban, LineChart, LogOut, Menu, Moon, Settings, Sun, X } from "lucide-react";
 import { Logo } from "./logo";
 import { api } from "./ui";
 
 const NAV = [
   { href: "/app", label: "Projects", icon: FolderKanban, exact: true },
-  { href: "/app/playbooks", label: "Playbooks", icon: BookMarked },
-  { href: "/app/insights", label: "Insights", icon: LineChart },
-  { href: "/app/memory", label: "Memory", icon: Brain },
+  { href: "/app/insights", label: "Results", icon: LineChart },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar({ user, projects }: { user: { name: string; email: string }; projects: { id: string; name: string }[] }) {
+export function Sidebar({ user, projects }: { user: { name: string; email: string; isGuest: boolean }; projects: { id: string; name: string }[] }) {
   const path = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -93,7 +91,15 @@ export function Sidebar({ user, projects }: { user: { name: string; email: strin
       </div>
 
       <div className="border-t border-line p-3">
-        <div className="flex items-center gap-2">
+        {user.isGuest ? (
+          <div className="mb-3">
+            <Link href="/signup" className="btn btn-accent btn-sm w-full">
+              Save your work
+            </Link>
+            <p className="mt-1.5 text-center text-[11px] text-ink-3">Guest audits are kept for 7 days</p>
+          </div>
+        ) : null}
+        <div className={`flex items-center gap-2 ${user.isGuest ? "hidden" : ""}`}>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] text-ink">{user.name}</p>
             <p className="truncate text-[11px] text-ink-3">{user.email}</p>

@@ -16,7 +16,7 @@ const LABEL: Record<string, (d: Record<string, unknown>) => string> = {
   "prompt.optimized": (d) => `Improved prompt (${d.method === "model" ? "model rewrite" : "structured from brief"})`,
   "prompt.refined": () => "Refined prompt with a follow-up instruction",
   "prompt.edited": () => "Edited a prompt (saved as new version)",
-  "artifact.added": (d) => `Added output v${d.version} (${d.kind})`,
+  "artifact.added": (d) => `Added v${d.version} (${d.kind})`,
   "evaluation.started": (d) => `Audit started for v${d.version}`,
   "evaluation.completed": (d) => `Audit finished for v${d.version}${d.failing !== undefined ? `: ${d.failing} failing requirement(s)` : ""}`,
   "evaluation.failed": (d) => `Audit failed: ${d.error}`,
@@ -24,6 +24,10 @@ const LABEL: Record<string, (d: Record<string, unknown>) => string> = {
   "correction.created": (d) => `Correction prompt for ${d.issues} issue(s) in v${d.version}`,
   "reference.added": (d) => `Added reference image ${d.name ?? ""}`.trim(),
   "reference.removed": (d) => `Removed reference image ${d.name ?? ""}`.trim(),
+  "hook.created": () => "Turned on re-audit on deploy",
+  "hook.removed": () => "Turned off re-audit on deploy",
+  "share.created": () => "Created a share link",
+  "share.revoked": () => "Stopped sharing",
   "playbook.saved": (d) => `Saved as playbook (${d.requirements} requirements)`,
 };
 

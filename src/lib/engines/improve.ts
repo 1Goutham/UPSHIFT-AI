@@ -1,4 +1,5 @@
 import { SEVERITY_RANK, isFailing, isPassing } from "./taxonomy";
+import { builderFor } from "./builders";
 
 type F = {
   id: string;
@@ -48,53 +49,76 @@ export function prioritise<T extends F>(findings: T[], priorities: Map<string, s
 }
 
 /**
- * Build a targeted correction prompt from selected findings. Deterministic:
- * it restates findings the user selected, lists what already works so the
- * tool does not touch it, and asks for verification of each fix.
+ * Build targeted correction prompts from selected findings. Deterministic:
+ * restates the selected findings, lists what already works so it is kept,
+ * and asks for verification. Large sets are split into several messages for
+ * chat builders, which tend to regress when asked for many fixes at once.
  */
-export function buildCorrectionPrompt(input: {
+export function buildCorrectionPrompts(input: {
   goal: string;
   targetTool: string;
   artifactLabel: string;
   selected: F[];
   passing: F[];
   extraInstruction?: string;
-}): string {
-  const lines: string[] = [];
-  lines.push(
-    `You are fixing an existing ${input.artifactLabel || "result"}. Make targeted changes only. Do not redesign, restyle or rewrite anything that is not listed below.`,
-    "",
-  );
-  if (input.goal.trim()) lines.push("## Original goal", input.goal.trim(), "");
-
-  lines.push("## Fix these issues (in this order)");
-  input.selected.forEach((f, i) => {
-    lines.push(`${i + 1}. ${f.title}${f.status === "likely_issue" ? " (reported by review, confirm before changing)" : ""}`);
-    if (f.detail) lines.push(`   Problem: ${f.detail}`);
-    if (f.evidence) lines.push(`   Evidence: ${f.evidence.split("\n").slice(0, 4).join("; ")}`);
-    if (f.recommendation) lines.push(`   Desired result: ${f.recommendation}`);
-    if (f.verification) lines.push(`   Verify by: ${f.verification}`);
-  });
-  lines.push("");
-
+}): string[] {
+  const builder = builderFor(input.targetTool);
+  const batches: F[][] = [];
+  for (let i = 0; i < input.selected.length; i += builder.batch) batches.push(input.selected.slice(i, i + builder.batch));
   const keep = input.passing.filter((p) => isPassing(p.status) && p.requirementId).slice(0, 12);
-  if (keep.length) {
-    lines.push("## Keep working (do not change or break these)");
-    for (const p of keep) lines.push(`- ${p.title}`);
-    lines.push("");
-  }
-  if (input.extraInstruction?.trim()) lines.push("## Additional instruction", input.extraInstruction.trim(), "");
 
-  lines.push(
-    "## Constraints",
-    "- Change only what is needed for the issues above.",
-    "- Preserve existing content, structure, styling and behaviour that is not mentioned.",
-    "- If a fix would conflict with something in 'Keep working', stop and say so instead of choosing.",
-    "",
-    "## When done",
-    "- For each numbered issue, state what you changed and how you verified it.",
-    "- List any issue you could not fix and why.",
-  );
-  if (input.targetTool.trim()) lines.push("", `(For ${input.targetTool.trim()}.)`);
-  return lines.join("\n");
+  return batches.map((batch, b) => {
+    const part = batches.length > 1 ? ` (message ${b + 1} of ${batches.length})` : "";
+    const lines: string[] = [];
+    if (b === 0) {
+      lines.push(`Fix the issues below in the existing ${input.artifactLabel || "result"}${part}. Make targeted changes only. Do not redesign, restyle or rewrite anything that is not listed.`, "");
+      if (input.goal.trim()) lines.push("## Goal", input.goal.trim(), "");
+    } else {
+      lines.push(`Continue${part}. Keep the fixes from the previous message. Change only what is listed below.`, "");
+    }
+    lines.push(builder.kind === "agent" ? "## Task" : "## Fix these, in order");
+    batch.forEach((f, i) => {
+      lines.push(`${i + 1}. ${f.title}${f.status === "likely_issue" ? " (reported by review: confirm before changing)" : ""}`);
+      if (f.detail) lines.push(`   Problem: ${f.detail}`);
+      if (f.evidence) lines.push(`   Evidence: ${f.evidence.split("\n").slice(0, 3).join("; ")}`);
+      if (f.recommendation) lines.push(`   Desired result: ${f.recommendation}`);
+      if (f.verification && builder.kind !== "chat") lines.push(`   Verify: ${f.verification}`);
+    });
+    lines.push("");
+    if (keep.length && b === 0) {
+      lines.push("## Keep working (do not change or break)");
+      for (const p of keep) lines.push(`- ${p.title}`);
+      lines.push("");
+    }
+    if (input.extraInstruction?.trim() && b === 0) lines.push("## Also", input.extraInstruction.trim(), "");
+    if (builder.kind === "agent") {
+      lines.push(
+        "## Before you finish",
+        "- Run the app and check every item above at 390px and 1440px wide.",
+        "- Run the existing tests and linters; do not change unrelated files.",
+        "- Reply with what you changed for each item and anything you could not fix.",
+      );
+    } else {
+      lines.push("When done, say what you changed for each item and anything you could not fix.");
+    }
+    return lines.join("\n");
+  });
+}
+
+/** Single-message form, kept for callers that need one string. */
+export function buildCorrectionPrompt(input: Parameters<typeof buildCorrectionPrompts>[0]): string {
+  return buildCorrectionPrompts({ ...input, targetTool: input.targetTool || "" }).join("\n\n");
+}
+
+/** How a fix prompt played out in the next version, matched by check key. */
+export function fixOutcome(attemptedKeys: string[], next: { checkKey: string; status: string }[]) {
+  const byKey = new Map(next.map((f) => [f.checkKey, f.status]));
+  let resolved = 0;
+  let stillFailing = 0;
+  for (const k of attemptedKeys) {
+    const st = byKey.get(k);
+    if (st && isPassing(st)) resolved++;
+    else if (st && isFailing(st)) stillFailing++;
+  }
+  return { attempted: attemptedKeys.length, resolved, stillFailing };
 }

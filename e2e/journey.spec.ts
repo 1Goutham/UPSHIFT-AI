@@ -11,20 +11,20 @@ test("core journey: brief → prompt → audit → correction → v2 → compare
   const email = `e2e-${Date.now()}-${test.info().project.name}@example.com`;
   const mobile = test.info().project.name === "mobile";
 
-  await page.goto("/");
-  await shot(page, "01-landing");
-  await page.getByRole("link", { name: "Get started" }).click();
+  await page.goto("/signup");
   await page.getByLabel("Name").fill("Ana");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("correct-horse-battery");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/app$/, { timeout: 60_000 });
 
-  // 1. Project with goal and original prompt.
+  // 1. Project with goal and original prompt (the secondary start).
+  await page.getByRole("button", { name: /Start from a brief/ }).click();
   await page.getByLabel("Goal").fill("A portfolio site so recruiters hiring product designers remember me. Don't use stock photos.");
   await page.getByLabel("Your prompt (optional)").fill("Make my portfolio premium, modern and interactive.");
   await page.getByText("More options").click();
   await page.getByLabel("Name", { exact: true }).fill("Ana portfolio");
+  await page.getByRole("combobox", { name: "AI tool" }).fill("Lovable");
   await shot(page, "02-new-project");
   await page.getByRole("button", { name: "Start" }).click();
   await expect(page).toHaveURL(/\/app\/p\//);
@@ -52,19 +52,26 @@ test("core journey: brief → prompt → audit → correction → v2 → compare
   await shot(page, "04-prompt");
 
   // 4. Add v1 URL → audit with the real browser.
-  await page.getByRole("tab", { name: /Outputs/ }).click();
+  await page.getByRole("tab", { name: /Audit/ }).click();
   await page.getByRole("textbox", { name: "URL" }).fill(`${FIXTURE}/v1`);
   await page.getByRole("button", { name: "Add and audit" }).click();
   await expect(page.getByText(/Auditing version 1/)).toBeVisible();
   await expect(page.getByText(/\d+\/\d+ met/)).toBeVisible({ timeout: 120_000 });
   await expect(page.getByText("No placeholder content").first()).toBeVisible();
   await expect(page.getByText("Screenshots")).toBeVisible();
+  // Deeper checks: crawl, mobile navigation, axe-core.
+  await page.getByRole("tab", { name: "All" }).click();
+  await expect(page.getByText("Internal links work")).toBeVisible();
+  await expect(page.getByText("Navigation works on phones")).toBeVisible();
+  await expect(page.getByText("Automated accessibility rules (WCAG A/AA)")).toBeVisible();
+  await page.getByRole("tab", { name: /Issues/ }).click();
   await shot(page, "05-audit-v1");
 
   // 5. Correction prompt from preselected issues.
   await page.getByRole("button", { name: "Create correction prompt" }).click();
-  await expect(page.getByText(/Fix these issues \(in this order\)/)).toBeVisible();
-  await expect(page.getByText(/Keep working|Constraints/).first()).toBeVisible();
+  // Built with Lovable: split into small messages.
+  await expect(page.getByText(/Message 1 of \d+/)).toBeVisible();
+  await expect(page.getByText(/Fix these, in order/).first()).toBeVisible();
   await shot(page, "06-correction");
 
   // 6. v2 → compare shows improvements.
@@ -76,13 +83,17 @@ test("core journey: brief → prompt → audit → correction → v2 → compare
   await page.getByRole("button", { name: "Add and audit" }).click();
   await expect(page.getByText(/\d+\/\d+ met/)).toBeVisible({ timeout: 120_000 });
   await expect(page.getByRole("button", { name: /vs v1/ })).toContainText("↑");
+  await expect(page.getByRole("button", { name: /vs v1/ })).toContainText(/fix \d+\/\d+/);
   await page.getByRole("tab", { name: /Compare/ }).click();
   const improved = page.locator("dt", { hasText: "Improved" }).locator("xpath=following-sibling::dd");
   await expect(improved).not.toHaveText("0");
+  await page.getByRole("tab", { name: "Difference" }).first().click();
+  await expect(page.getByText(/bright = changed/).first()).toBeVisible();
+  await page.getByRole("tab", { name: "Side by side" }).first().click();
   await shot(page, "07-compare");
 
   // 7. Human review of an untested requirement.
-  await page.getByRole("tab", { name: /Outputs/ }).click();
+  await page.getByRole("tab", { name: /Audit/ }).click();
   await page.getByRole("tab", { name: /Requirements \d+/ }).click();
   const met = page.getByRole("button", { name: "Met", exact: true }).first();
   if (await met.isVisible()) {
@@ -96,11 +107,12 @@ test("core journey: brief → prompt → audit → correction → v2 → compare
   await shot(page, "08-history");
   await page.goto("/app");
   await page.getByRole("link", { name: /Ana portfolio/ }).first().click();
-  await expect(page.getByRole("tab", { name: /Outputs/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: /Audit/ })).toHaveAttribute("aria-selected", "true");
 
   if (!mobile) {
     await page.goto("/app/insights");
-    await expect(page.getByText("Frequent prompt gaps")).toBeVisible();
+    await expect(page.getByText("Fix success")).toBeVisible();
+    await expect(page.getByText(/issues resolved in the next version/)).toBeVisible();
     await shot(page, "09-insights");
     await page.goto("/app/settings");
     await expect(page.getByText("Not configured")).toBeVisible();
@@ -115,10 +127,11 @@ test("uploads are validated by content, not file name", async ({ page }) => {
   await page.getByLabel("Password").fill("correct-horse-battery");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/app$/, { timeout: 60_000 });
+  await page.getByRole("button", { name: /Start from a brief/ }).click();
   await page.getByLabel("Goal").fill("Upload test");
   await page.getByRole("button", { name: "Start" }).click();
   await expect(page).toHaveURL(/\/app\/p\//);
-  await page.getByRole("tab", { name: /Outputs/ }).click();
+  await page.getByRole("tab", { name: /Audit/ }).click();
   await page.getByRole("tab", { name: "Upload file" }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: "evil.png", mimeType: "image/png", buffer: Buffer.from("<svg onload=alert(1)>") });
   await page.getByRole("button", { name: "Add and audit" }).click();
@@ -139,6 +152,7 @@ test("projects are isolated between accounts", async ({ page, request }) => {
   await page.getByLabel("Password").fill("correct-horse-battery");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/app$/, { timeout: 60_000 });
+  await page.getByRole("button", { name: /Start from a brief/ }).click();
   await page.getByLabel("Goal").fill("Secret project");
   await page.getByRole("button", { name: "Start" }).click();
   await expect(page).toHaveURL(/\/app\/p\//);
@@ -165,6 +179,7 @@ test("reference images can be added and removed in the brief", async ({ page }) 
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/app$/, { timeout: 60_000 });
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+  await page.getByRole("button", { name: /Start from a brief/ }).click();
   await page.getByLabel("Goal").fill("With references");
   // Picked before the project exists; uploaded on create.
   await page.locator('input[type="file"]').setInputFiles({ name: "mood.png", mimeType: "image/png", buffer: png });
@@ -190,6 +205,7 @@ test("a shared report is public, read-only and revocable", async ({ page, browse
   await page.getByLabel("Password").fill("correct-horse-battery");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/app$/, { timeout: 60_000 });
+  await page.getByRole("button", { name: /Start from a brief/ }).click();
   await page.getByLabel("Goal").fill("Shared site check");
   await page.getByRole("button", { name: "Start" }).click();
   await expect(page).toHaveURL(/\/app\/p\//);
@@ -230,4 +246,54 @@ test("password change keeps you signed in and the new password works", async ({ 
   await expect(page).toHaveURL(/\/app$/);
   const bad = await page.request.post("/api/auth/login", { data: { email, password: "correct-horse-battery" } });
   expect(bad.status()).toBe(401);
+});
+
+test("free audit without an account, then save it by signing up", async ({ page }) => {
+  await page.goto("/");
+  await shot(page, "00-landing");
+  await page.getByLabel("Website URL").fill(`${FIXTURE}/v2`);
+  await page.getByRole("button", { name: "Audit" }).click();
+  await expect(page).toHaveURL(/\/app\/p\/.*tab=outputs/, { timeout: 60_000 });
+  await expect(page.getByText(/Auditing/).first()).toBeVisible();
+  await expect(page.getByText("Screenshots")).toBeVisible({ timeout: 120_000 });
+  await shot(page, "00-guest-audit");
+  // Save: the guest becomes a real account, and the audit stays.
+  if (test.info().project.name === "mobile") await page.getByRole("button", { name: "Open menu" }).click();
+  await page.getByRole("link", { name: "Save your work" }).click();
+  await expect(page.getByRole("heading", { name: /Create account/ })).toBeVisible({ timeout: 60_000 });
+  await page.waitForLoadState("networkidle");
+  await page.getByLabel("Name").fill("G");
+  await page.getByLabel("Email").fill(`guest-${Date.now()}-${test.info().project.name}@example.com`);
+  await page.getByLabel("Password").fill("correct-horse-battery");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page).toHaveURL(/\/app$/, { timeout: 60_000 });
+  await expect(page.getByRole("link", { name: /127\.0\.0\.1/ }).first()).toBeVisible();
+});
+
+test("re-audit on deploy creates the next version", async ({ page }) => {
+  test.skip(test.info().project.name === "mobile");
+  await page.goto("/signup");
+  await page.getByLabel("Name").fill("H");
+  await page.getByLabel("Email").fill(`hook-${Date.now()}@example.com`);
+  await page.getByLabel("Password").fill("correct-horse-battery");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page).toHaveURL(/\/app$/, { timeout: 60_000 });
+  await page.getByLabel("Website URL").fill(`${FIXTURE}/v2`);
+  await page.getByRole("button", { name: "Audit" }).click();
+  await expect(page.getByText("Screenshots")).toBeVisible({ timeout: 120_000 });
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "Re-audit on deploy" }).click();
+  await expect(page.locator("dialog pre")).toContainText("/api/hooks/");
+  const cmd = await page.locator("dialog pre").textContent();
+  const url = cmd!.split(" ").pop()!;
+  expect(url).toMatch(/\/api\/hooks\/[A-Za-z0-9_-]+$/);
+  const ci = await playwrightRequest.newContext();
+  const res = await ci.post(url);
+  expect(res.ok()).toBeTruthy();
+  expect((await res.json()).version).toBe(2);
+  expect((await ci.post(url.replace(/[^/]+$/, "nope-nope-nope-nope-nope"))).status()).toBe(404);
+  await ci.dispose();
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.reload();
+  await expect(page.getByText(/v2/).first()).toBeVisible();
 });

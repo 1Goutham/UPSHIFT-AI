@@ -7,6 +7,7 @@ import { CONTENT_TYPES } from "@/lib/engines/taxonomy";
 import { api, ErrorNote, Field, Spinner } from "./ui";
 import { Dictate } from "./dictate";
 import { PendingReferences } from "./references";
+import { BuilderOptions } from "./builder-options";
 
 export function NewProject({ startOpen, playbooks }: { startOpen: boolean; playbooks: { id: string; name: string }[] }) {
   const router = useRouter();
@@ -18,8 +19,8 @@ export function NewProject({ startOpen, playbooks }: { startOpen: boolean; playb
 
   if (!open)
     return (
-      <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4" aria-hidden /> New project
+      <button type="button" className="btn btn-quiet btn-sm" onClick={() => setOpen(true)}>
+        <Plus className="h-4 w-4" aria-hidden /> Start from a brief, prompt or image instead
       </button>
     );
 
@@ -107,7 +108,8 @@ export function NewProject({ startOpen, playbooks }: { startOpen: boolean; playb
               </select>
             </Field>
             <Field label="AI tool">
-              <input name="targetTool" maxLength={80} className="field-input" placeholder="Lovable, v0, Cursor…" />
+              <input name="targetTool" maxLength={80} className="field-input" placeholder="Lovable, v0, Cursor…" list="builders" />
+              <BuilderOptions />
             </Field>
             {playbooks.length ? (
               <Field label="Playbook">
