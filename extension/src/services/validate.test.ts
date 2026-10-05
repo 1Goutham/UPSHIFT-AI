@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseRefineResult } from "./validate";
 import { normaliseServer } from "./settings";
-import manifest from "../../manifest.json";
+import manifest from "../../manifest.base.json";
 
 describe("refine response validation", () => {
   it("rejects malformed replies", () => {

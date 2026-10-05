@@ -1,4 +1,5 @@
-// Builds the extension into extension/dist.
+// Builds the extension into extension/dist (load that folder in Chrome).
+// Dev builds go to extension/dist-dev so they never overwrite the committed build.
 //   node extension/build.mjs            production build
 //   UPSHIFT_EXT_DEV=1 node ...          also grants localhost host access (local testing only)
 //   UPSHIFT_SERVER_URL=https://...      default server shown in the popup
@@ -8,8 +9,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const out = path.join(here, "dist");
 const dev = process.env.UPSHIFT_EXT_DEV === "1";
+const out = path.join(here, dev ? "dist-dev" : "dist");
 
 await fs.rm(out, { recursive: true, force: true });
 await fs.mkdir(path.join(out, "icons"), { recursive: true });
@@ -35,7 +36,7 @@ await Promise.all([
   build({ ...common, entryPoints: [path.join(here, "src/popup/popup.ts")], outfile: path.join(out, "popup.js"), format: "iife" }),
 ]);
 
-const manifest = JSON.parse(await fs.readFile(path.join(here, "manifest.json"), "utf8"));
+const manifest = JSON.parse(await fs.readFile(path.join(here, "manifest.base.json"), "utf8"));
 if (dev) manifest.host_permissions = ["http://localhost/*", "http://127.0.0.1/*"];
 await fs.writeFile(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
 await fs.copyFile(path.join(here, "src/popup/popup.html"), path.join(out, "popup.html"));

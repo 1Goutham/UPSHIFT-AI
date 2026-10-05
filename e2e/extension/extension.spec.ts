@@ -1,7 +1,7 @@
 import { chromium, expect, test, type BrowserContext, type Page } from "@playwright/test";
 import path from "node:path";
 
-const DIST = path.resolve("extension/dist");
+const DIST = path.resolve("extension/dist-dev");
 const SERVER = "http://localhost:3201";
 
 // Stand-ins for the AI sites: same composer markup patterns, served locally

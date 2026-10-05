@@ -43,8 +43,8 @@ extension/src/
 - **Site selectors:** these follow each site's current markup and will need updates when the sites change. Every adapter falls back to the focused or largest editor on the page.
 
 ```bash
-npm run ext:build          # production build → extension/dist (and validates)
-npm run ext:build:dev      # dev build: open shadow root, localhost host access, for tests
+npm run ext:build          # production build → extension/dist (committed; this is the folder to Load unpacked)
+npm run ext:build:dev      # → extension/dist-dev: open shadow root, localhost host access, for tests
 npm run ext:validate       # MV3 shape, minimal permissions, no remote code / HTML injection
 npm run ext:typecheck
 npm run test:e2e:ext       # real extension in Chromium, against stand-in pages and a fake model upstream

@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), "dist");
+const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), process.argv[2] ?? "dist");
 const errors = [];
 const m = JSON.parse(await fs.readFile(path.join(dist, "manifest.json"), "utf8"));
 

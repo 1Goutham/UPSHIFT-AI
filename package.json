@@ -15,7 +15,7 @@
     "ext:build:dev": "UPSHIFT_EXT_DEV=1 node extension/build.mjs",
     "ext:validate": "node extension/validate.mjs",
     "ext:typecheck": "tsc -p extension/tsconfig.json",
-    "test:e2e:ext": "UPSHIFT_EXT_DEV=1 node extension/build.mjs && playwright test -c playwright.extension.config.ts"
+    "test:e2e:ext": "UPSHIFT_EXT_DEV=1 node extension/build.mjs && ALLOW_DEV_HOSTS=1 node extension/validate.mjs dist-dev && playwright test -c playwright.extension.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
