@@ -6,7 +6,7 @@ import type { PromptWeakness } from "@/lib/db/schema";
  * an empty result means only that none of these specific gaps were found.
  */
 
-const VAGUE_TERMS = [
+export const VAGUE_TERMS = [
   "premium",
   "modern",
   "clean",

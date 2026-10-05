@@ -365,6 +365,45 @@ export const hooks = pgTable(
   (t) => [uniqueIndex("hooks_token_idx").on(t.tokenHash), index("hooks_project_idx").on(t.projectId)],
 );
 
+/** Browser-extension access tokens. Only a SHA-256 is stored; shown once at creation. */
+export const extTokens = pgTable(
+  "ext_tokens",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    label: text("label").notNull().default("Browser extension"),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("ext_tokens_hash_idx").on(t.tokenHash), index("ext_tokens_user_idx").on(t.userId)],
+);
+
+/** Prompt refinements, stored only when the user opts in to history. */
+export const refinements = pgTable(
+  "refinements",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** chatgpt | gemini | grok | claude | other */
+    platform: text("platform").notNull(),
+    /** quick | deep | expert */
+    mode: text("mode").notNull(),
+    /** extension | web */
+    source: text("source").notNull().default("web"),
+    original: text("original").notNull(),
+    refined: text("refined").notNull(),
+    result: jsonb("result").$type<Record<string, unknown>>().notNull().default({}),
+    model: text("model"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("refinements_user_idx").on(t.userId, t.createdAt)],
+);
+
 /** Sliding-window rate limit hits, shared across server instances. */
 export const rateHits = pgTable(
   "rate_hits",

@@ -1,8 +1,58 @@
 # UPSHIFT
 
-**Did the AI build what you asked?** Paste the URL of a site built with Lovable, v0, Bolt, Cursor, Replit or Claude Code. UPSHIFT checks it in a real browser on phone and desktop, against what you asked for, and gives you the exact prompt to fix it. Then it checks whether the fix worked.
+**Get more out of every AI.** An intelligence layer for the AI tools you already use.
 
-**For:** freelancers and agencies handing AI-built sites to clients, and founders iterating on their own.
+```
+INTENT → PROMPT → UPSHIFT ANALYSIS → REFINED PROMPT → AI TOOL → OUTPUT → UPSHIFT AUDIT → TARGETED FIX ↺
+```
+
+- **Before you send: the browser extension.** A small ✦ UPSHIFT button on the prompt box in ChatGPT, Claude, Gemini and Grok:
+  - counts what's vague or missing as you type (locally, in the browser);
+  - refines the prompt in Quick, Deep or Expert mode, keeping your intent and checking it;
+  - replaces the prompt in place, or copies it.
+- **After it builds: the site audit.** Paste the URL of a site built with Lovable, v0, Bolt, Cursor, Replit or Claude Code. UPSHIFT checks it in a real browser against what you asked for, gives you the exact prompt to fix it, then checks whether the fix worked.
+
+## Browser extension
+
+`extension/` holds a Manifest V3 extension: vanilla TypeScript bundled with esbuild, and UI in a closed Shadow DOM.
+
+```
+extension/src/
+  adapters/    PlatformAdapter per site (ChatGPT, Claude, Gemini, Grok) + generic fallback; all site selectors live here
+  content/     overlay (button + panel), styles; mounts only on the five supported hosts
+  background/  service worker: the only code that talks to the network, and only on Refine
+  popup/       connect to an UPSHIFT server, privacy switches, per-site on/off
+  services/    settings, message types, response validation
+  lib/         textContent-only DOM builder (no HTML injection)
+```
+
+- **Shared engine:**
+  - The prompt gap checks (`src/lib/engines/prompt-lint.ts`), platform detection and the intent check (`src/lib/refine/*`) are bundled into the extension. Analysis needs no network.
+  - Refinement runs on the server (`POST /api/refine`) through the provider layer. Grok is the default; Claude works too.
+  - Model output is schema-constrained (Zod), re-validated on the server, and narrowed again in the extension before rendering.
+- **Intent preservation:**
+  - The model is told not to invent requirements, to mark assumptions and to leave `{{placeholders}}`.
+  - Afterwards a deterministic check reports "kept N of M key terms" (vague words like "cool" are excluded, since replacing them is the point).
+  - Quick mode flags output that balloons beyond a light edit.
+- **Honest insertion:** Replace writes the text the way a user would (native setter + input event for textareas; insertText, then paste, for contenteditable editors). It then reads the composer back. If the text isn't there, the panel says so and copies it instead. Undo restores the original.
+- **Privacy and permissions:**
+  - The only permission is `storage`; content scripts run only on chatgpt.com, chat.openai.com, claude.ai, gemini.google.com and grok.com.
+  - Access to your UPSHIFT server is an optional host permission, requested for that one origin when you connect.
+  - The token is created in Settings → Browser extension, stored hashed on the server and in `storage.local` on the device, and is revocable.
+  - History is off by default; you can turn UPSHIFT off per site.
+- **Site selectors:** these follow each site's current markup and will need updates when the sites change. Every adapter falls back to the focused or largest editor on the page.
+
+```bash
+npm run ext:build          # production build → extension/dist (and validates)
+npm run ext:build:dev      # dev build: open shadow root, localhost host access, for tests
+npm run ext:validate       # MV3 shape, minimal permissions, no remote code / HTML injection
+npm run ext:typecheck
+npm run test:e2e:ext       # real extension in Chromium, against stand-in pages and a fake model upstream
+```
+
+`npm run build` also builds the extension and publishes `/upshift-extension.zip` for the "Download for Chrome" button (Load unpacked; there's no Chrome Web Store listing yet).
+
+## Site audit
 
 **The loop**
 
@@ -126,6 +176,9 @@ Audits run after the response is sent (`after()`), record `running → complete 
 | Image and text/code audits (deterministic) | Implemented, e2e tested (image); unit tested (text/code) |
 | Model review of requirements (incl. screenshots and images) | Implemented; not live-tested |
 | Human verdicts on findings | Implemented, e2e tested |
+| Browser extension: detection, local analysis, Quick/Deep/Expert refine, before/after diff, replace/copy/edit/regenerate/undo, per-site off, history opt-in | Implemented; e2e tested with the real extension in Chromium against **stand-in pages** that mimic each composer, not the live sites |
+| Web Prompt Lab + refinement history | Implemented, e2e tested |
+| Extension on Firefox/Safari, Chrome Web Store listing | **Planned** |
 | Free URL audit without sign-up (guest accounts, upgraded on sign-up, merged on sign-in, cleaned after 7 days) | Implemented, e2e tested |
 | Crawl of linked pages, axe-core rules, mobile-menu interaction check | Implemented, e2e tested against a fixture site |
 | Builder-specific fix prompts (batched for chat builders), fix-success tracking | Implemented, unit + e2e tested |

@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "extension/src/**/*.test.ts"],
     environment: "node",
     testTimeout: 30000,
     env: { PGLITE_DIR: "memory://" },

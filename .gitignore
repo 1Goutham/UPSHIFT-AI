@@ -8,3 +8,5 @@ next-env.d.ts
 playwright-report
 test-results
 coverage
+extension/dist
+public/upshift-extension.zip

@@ -77,3 +77,29 @@ export function errorResponse(err: unknown) {
   console.error("[api] unhandled", err);
   return NextResponse.json({ error: "Something went wrong on our side. Nothing was lost; please try again." }, { status: 500 });
 }
+
+/**
+ * Like authed(), but also accepts an extension bearer token. Bearer requests
+ * skip the same-origin check (they carry no ambient cookie, so CSRF does not
+ * apply); cookie requests keep it.
+ */
+export function authedOrToken<P = Record<string, string>>(fn: (req: Request, user: SessionUser, params: P) => Promise<Response | unknown>) {
+  return async (req: Request, ctx: { params: Promise<P> }) => {
+    try {
+      const { userFromBearer } = await import("@/lib/auth/ext-token");
+      let user: SessionUser | null = null;
+      if (req.headers.get("authorization")) {
+        user = await userFromBearer(req);
+        if (!user) return NextResponse.json({ error: "This extension token is invalid or was revoked. Reconnect UPSHIFT." }, { status: 401 });
+      } else {
+        assertSameOrigin(req);
+        user = await currentUser();
+        if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+      }
+      const out = await fn(req, user, await ctx.params);
+      return out instanceof Response ? out : NextResponse.json(out ?? { ok: true });
+    } catch (err) {
+      return errorResponse(err);
+    }
+  };
+}

@@ -5,6 +5,7 @@ import { getDb, schema, dbDriver } from "@/lib/db";
 import { hasPricing, providerStatus } from "@/lib/ai/provider";
 import { DeleteAccount } from "@/components/delete-account";
 import { ChangePassword } from "@/components/change-password";
+import { ExtensionSettings } from "@/components/extension-settings";
 import { storageBackend } from "@/lib/storage";
 
 export const metadata = { title: "Settings" };
@@ -111,6 +112,13 @@ export default async function SettingsPage() {
           <p className="text-sm text-ink-3">No model calls yet.</p>
         )}
       </section>
+
+      {!user.isGuest ? (
+        <section id="extension">
+          <h2 className="eyebrow mb-3">Browser extension</h2>
+          <ExtensionSettings />
+        </section>
+      ) : null}
 
       <section>
         <h2 className="eyebrow mb-3">Account</h2>

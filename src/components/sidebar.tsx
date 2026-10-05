@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { FolderKanban, LineChart, LogOut, Menu, Moon, Settings, Sun, X } from "lucide-react";
+import { FolderKanban, LineChart, LogOut, Menu, Moon, Settings, Sparkles, Sun, X } from "lucide-react";
 import { Logo } from "./logo";
 import { api } from "./ui";
 
 const NAV = [
   { href: "/app", label: "Projects", icon: FolderKanban, exact: true },
+  { href: "/app/refine", label: "Refine", icon: Sparkles },
   { href: "/app/insights", label: "Results", icon: LineChart },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];
