@@ -31,7 +31,7 @@ export function PromptTab({ ctx }: { ctx: Ctx }) {
         {selected && selected.kind !== "original" ? (
           <PromptView key={selected.id} ctx={ctx} prompt={selected} original={prompts.find((p) => p.id === selected.parentId) ?? original ?? null} onCreated={setSelectedId} />
         ) : original ? (
-          <Empty title="No improved version yet">Use &ldquo;Improve prompt&rdquo; above. It keeps your wording and decisions and fills the gaps listed.</Empty>
+          <Empty title="No improved version yet" />
         ) : null}
       </div>
 
@@ -137,7 +137,6 @@ function OriginalSection({ ctx, original, onCreated }: { ctx: Ctx; original: Pro
               {busy === "save" ? <Spinner /> : null} Save prompt
             </button>
           </div>
-          {original ? <p className="text-xs text-ink-3">Saving creates a new version. Earlier versions stay in the list.</p> : null}
         </div>
       ) : original ? (
         <div className="rounded-lg border border-line bg-panel p-4">
@@ -149,10 +148,9 @@ function OriginalSection({ ctx, original, onCreated }: { ctx: Ctx; original: Pro
         <>
           <div className="mt-6">
             <p className="mb-2 text-sm text-ink">
-              {weaknesses.length ? `${weaknesses.length} gap${weaknesses.length === 1 ? "" : "s"} found` : "No common gaps found"}
-              <span className="ml-2 font-mono text-[11px] text-ink-3">rule-based checks</span>
+              {weaknesses.length ? `${weaknesses.length} gap${weaknesses.length === 1 ? "" : "s"}` : "No gaps found"}
             </p>
-            {weaknesses.length ? <WeaknessList items={weaknesses} /> : <p className="text-xs text-ink-3">That means none of the specific checks fired, not that the prompt is perfect.</p>}
+            {weaknesses.length ? <WeaknessList items={weaknesses} /> : null}
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -162,18 +160,11 @@ function OriginalSection({ ctx, original, onCreated }: { ctx: Ctx; original: Pro
             {provider.configured ? (
               <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-ink-2">
                 <input type="checkbox" checked={useModel} onChange={(e) => setUseModel(e.target.checked)} className="accent-[var(--accent)]" />
-                Rewrite with model
+                Model
               </label>
             ) : null}
-            {(!provider.configured || !useModel) && (
-              <span className="text-xs text-ink-3">
-                {confirmed
-                  ? `Structures your prompt around ${confirmed} confirmed requirement${confirmed === 1 ? "" : "s"}. No model involved.`
-                  : "Confirm requirements in the Brief first; the structured version is built from them."}
-              </span>
-            )}
+            {(!provider.configured || !useModel) && !confirmed ? <span className="text-xs text-ink-3">Confirm requirements first</span> : null}
           </div>
-          {busy === "optimize" && useModel && provider.configured ? <p className="mt-2 text-xs text-ink-3">Rewriting. Usually 15–60 seconds.</p> : null}
           {error ? (
             <div className="mt-3">
               <ErrorNote message={error} onRetry={optimize} />
@@ -189,14 +180,13 @@ function WeaknessList({ items }: { items: PromptWeakness[] }) {
   return (
     <ul className="divide-y divide-line border-y border-line">
       {items.map((w, i) => (
-        <li key={`${w.id}-${i}`} className="flex gap-3 py-2.5">
+        <li key={`${w.id}-${i}`} className="flex gap-3 py-2" title={w.detail}>
           <span className={`mt-0.5 w-14 shrink-0 font-mono text-[11px] uppercase ${w.severity === "high" ? "text-fail" : w.severity === "medium" ? "text-warn" : "text-ink-3"}`}>{w.severity}</span>
           <div className="min-w-0 flex-1">
             <p className="text-sm text-ink">
               {w.label}
               {w.source === "model" ? <Asterisk className="ml-1.5 text-[10px] text-accent" /> : null}
             </p>
-            <p className="text-xs leading-relaxed text-ink-3">{w.detail}</p>
           </div>
         </li>
       ))}
@@ -263,7 +253,7 @@ function PromptView({ ctx, prompt, original, onCreated }: { ctx: Ctx; prompt: Pr
             {prompt.kind === "correction" ? "Correction prompt" : "Improved prompt"}
           </h2>
           <p className="mt-1 font-mono text-[11px] text-ink-3">
-            {prompt.method === "model" ? `rewritten by ${prompt.model}` : prompt.method === "deterministic" ? "assembled from your confirmed brief, no model" : "edited by you"} · {fmtTime(prompt.createdAt)}
+            {prompt.method === "model" ? prompt.model : prompt.method === "deterministic" ? "from your brief" : "edited"} · {fmtTime(prompt.createdAt)}
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -328,9 +318,15 @@ function PromptView({ ctx, prompt, original, onCreated }: { ctx: Ctx; prompt: Pr
         </div>
       ) : null}
 
+      {a.changes?.length || a.preserved?.length || a.assumptions?.length || a.toolNotes?.length ? (
+      <details className="group">
+        <summary className="cursor-pointer list-none text-xs text-ink-3 hover:text-ink">
+          <span className="group-open:hidden">Why these changes</span>
+          <span className="hidden group-open:inline">Hide</span>
+        </summary>
+        <div className="mt-4 space-y-6">
       {a.changes?.length ? (
         <div>
-          <p className="mb-2 text-sm text-ink">What changed and why</p>
           <ul className="space-y-2">
             {a.changes.map((c, i) => (
               <li key={i} className="text-sm">
@@ -345,11 +341,13 @@ function PromptView({ ctx, prompt, original, onCreated }: { ctx: Ctx; prompt: Pr
         {a.assumptions?.length ? <NoteList title="Assumptions to check" items={a.assumptions} /> : null}
         {a.toolNotes?.length ? <NoteList title={`Specific to ${prompt.targetTool || "the target tool"}`} items={a.toolNotes} /> : null}
       </div>
-      {a.instruction ? <p className="text-xs text-ink-3">Instruction: {a.instruction}</p> : null}
+        </div>
+      </details>
+      ) : null}
 
-      {prompt.kind !== "correction" ? (
+      {prompt.kind !== "correction" && provider.configured ? (
         <div className="border-t border-line pt-6">
-          <Field label="Refine with a follow-up instruction" hint={provider.configured ? "Only the change you ask for is made; the result is saved as a new version." : "Needs a configured model. You can still edit the text directly."}>
+          <Field label="Refine">
             <div className="flex items-end gap-2">
               <input
                 value={instruction}
@@ -358,7 +356,7 @@ function PromptView({ ctx, prompt, original, onCreated }: { ctx: Ctx; prompt: Pr
                 disabled={!provider.configured}
                 maxLength={2000}
                 className="field-input"
-                placeholder="e.g. Make it suitable for a one-page site, and drop the blog section"
+                placeholder="e.g. Make it a one-page site"
               />
               <button type="button" className="btn btn-ghost btn-sm" disabled={!provider.configured || instruction.trim().length < 3 || busy === "refine"} onClick={refine}>
                 {busy === "refine" ? <Spinner /> : <Wand2 className="h-3.5 w-3.5" />} Refine
@@ -371,9 +369,7 @@ function PromptView({ ctx, prompt, original, onCreated }: { ctx: Ctx; prompt: Pr
             </div>
           ) : null}
         </div>
-      ) : (
-        <p className="text-xs text-ink-3">Paste this into {prompt.targetTool || "your AI tool"}, then add the new result as the next version in Outputs.</p>
-      )}
+      ) : null}
     </section>
   );
 }

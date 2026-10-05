@@ -265,6 +265,25 @@ export const findings = pgTable(
   (t) => [index("findings_evaluation_idx").on(t.evaluationId, t.position)],
 );
 
+/** Images the user supplies as the target look (mockups, inspiration, brand). Not output versions. */
+export const referenceImages = pgTable(
+  "reference_images",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    storageKey: text("storage_key").notNull(),
+    mime: text("mime").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    label: text("label").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [index("reference_images_project_idx").on(t.projectId, t.createdAt)],
+);
+
 /* ------------------------------------------------------------------ */
 /*  History, usage and memory                                          */
 /* ------------------------------------------------------------------ */
@@ -355,3 +374,4 @@ export type Finding = typeof findings.$inferSelect;
 export type EventRow = typeof events.$inferSelect;
 export type Memory = typeof memories.$inferSelect;
 export type Playbook = typeof playbooks.$inferSelect;
+export type ReferenceImage = typeof referenceImages.$inferSelect;

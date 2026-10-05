@@ -37,9 +37,7 @@ export function CompareTab({ ctx }: { ctx: Ctx }) {
   if (audited.length < 2)
     return (
       <div className="rise-in mx-auto max-w-3xl">
-        <Empty title="Need two audited versions">
-          Add the AI&rsquo;s next attempt as a new version in Outputs. Both versions are checked against the same requirements so changes line up.
-        </Empty>
+        <Empty title="Add a second version to compare" />
       </div>
     );
 
@@ -62,7 +60,7 @@ export function CompareTab({ ctx }: { ctx: Ctx }) {
       </div>
 
       {reqChanged ? (
-        <p className="text-xs text-warn">The requirement set changed between these audits. Re-run the older audit in Outputs for a like-for-like comparison.</p>
+        <p className="text-xs text-warn">Requirements changed between these audits. Re-run the older one for a fair comparison.</p>
       ) : null}
 
       {result && aId !== bId ? (
@@ -75,9 +73,6 @@ export function CompareTab({ ctx }: { ctx: Ctx }) {
               </div>
             ))}
           </dl>
-          <p className="text-xs text-ink-3">
-            Lined up by requirement and check. Changes from model judgements are marked; a model changing its mind is weaker evidence than a check flipping.
-          </p>
 
           <section>
             <div className="mb-2 flex items-center justify-between">
@@ -102,7 +97,7 @@ export function CompareTab({ ctx }: { ctx: Ctx }) {
                   </span>
                 </li>
               ))}
-              {!visible.length ? <li className="py-3 text-sm text-ink-3">No status changes between these versions.</li> : null}
+              {!visible.length ? <li className="py-3 text-sm text-ink-3">No changes.</li> : null}
             </ul>
           </section>
 

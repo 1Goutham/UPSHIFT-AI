@@ -6,6 +6,7 @@ import { CATEGORIES, ORIGIN_LABEL, PRIORITIES } from "@/lib/engines/taxonomy";
 import type { Requirement } from "@/lib/db/schema";
 import { api, Asterisk, Empty, ErrorNote, Field, Spinner, useToast } from "../ui";
 import type { Ctx } from "./types";
+import { References } from "../references";
 
 export function BriefTab({ ctx }: { ctx: Ctx }) {
   const { ws, provider, reload } = ctx;
@@ -50,42 +51,27 @@ export function BriefTab({ ctx }: { ctx: Ctx }) {
 
   return (
     <div className="rise-in mx-auto max-w-3xl space-y-10">
-      {/* Goal */}
-      <section aria-labelledby="goal-h">
-        <h2 id="goal-h" className="eyebrow mb-3">
-          Intended result
-        </h2>
-        <Field label="What should the AI help you achieve?">
-          <textarea rows={3} maxLength={4000} value={goal} onChange={(e) => setGoal(e.target.value)} onBlur={() => goal !== p.goal && patch({ goal })} className="field-input" placeholder="e.g. A portfolio site that makes recruiters remember me, works on phones, and shows 3 case studies." />
+      <section aria-label="Goal" className="space-y-5">
+        <Field label="Goal">
+          <textarea rows={3} maxLength={4000} value={goal} onChange={(e) => setGoal(e.target.value)} onBlur={() => goal !== p.goal && patch({ goal })} className="field-input" placeholder="What should the AI help you make?" />
         </Field>
-        {original ? (
-          <p className="mt-3 text-xs text-ink-3">
-            Your original prompt ({original.content.split(/\s+/).length} words) is also used. Edit it in <button type="button" className="underline underline-offset-4 hover:text-ink" onClick={() => ctx.setTab("prompt")}>Prompt</button>.
-          </p>
-        ) : null}
-        <div className="mt-5 flex flex-wrap items-center gap-3">
+        <div>
+          <p className="field-label">References</p>
+          <References projectId={p.id} items={ws.references} onChange={reload} />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
           <button type="button" className="btn btn-primary" disabled={busy || (!goal.trim() && !original)} onClick={generate}>
             {busy ? <Spinner /> : <Sparkles className="h-4 w-4" aria-hidden />}
             {hasBrief ? "Rebuild brief" : "Build brief"}
           </button>
           {provider.configured ? (
-            <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-ink-2">
+            <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-ink-3" title={provider.model}>
               <input type="checkbox" checked={useModel} onChange={(e) => setUseModel(e.target.checked)} className="accent-[var(--accent)]" />
-              Use model ({provider.model})
+              Model
             </label>
-          ) : (
-            <span className="text-xs text-ink-3">No model configured: the brief is built from your own words plus a labelled baseline.</span>
-          )}
+          ) : null}
         </div>
-        {busy ? <p className="mt-3 text-xs text-ink-3">{useModel && provider.configured ? "Reading your goal and prompt. This usually takes 10–40 seconds." : "Splitting your goal into checkable requirements…"}</p> : null}
-        {error ? (
-          <div className="mt-3">
-            <ErrorNote message={error} onRetry={generate} />
-          </div>
-        ) : null}
-        {hasBrief && proposed.length === 0 && confirmed.length > 0 ? (
-          <p className="mt-3 text-xs text-ink-3">Rebuilding keeps every confirmed requirement and replaces unreviewed suggestions.</p>
-        ) : null}
+        {error ? <ErrorNote message={error} onRetry={generate} /> : null}
       </section>
 
       {hasBrief ? <BriefDetails ctx={ctx} onPatch={patch} /> : null}
@@ -93,17 +79,16 @@ export function BriefTab({ ctx }: { ctx: Ctx }) {
       {/* Requirements */}
       <section aria-labelledby="req-h">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="req-h" className="eyebrow">
-            Acceptance checklist · {confirmed.length} confirmed
+          <h2 id="req-h" className="eyebrow" title="Outputs are audited against confirmed items">
+            Checklist · {confirmed.length}
           </h2>
-          <p className="text-xs text-ink-3">Audits are run against confirmed items only.</p>
         </div>
 
         {proposed.length ? (
           <div className="mb-6 rounded-lg border border-dashed border-line-strong p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <p className="flex items-center gap-2 text-sm text-ink">
-                <Asterisk className="text-accent" /> {proposed.length} suggested. Review before they count.
+                <Asterisk className="text-accent" /> {proposed.length} suggested
               </p>
               <button
                 type="button"
@@ -131,7 +116,7 @@ export function BriefTab({ ctx }: { ctx: Ctx }) {
             ))}
           </ul>
         ) : !proposed.length ? (
-          <Empty title="No requirements yet">Build the brief from your goal, or add requirements yourself below.</Empty>
+          <Empty title="No requirements yet" />
         ) : null}
 
         <AddRequirement ctx={ctx} />
@@ -169,11 +154,8 @@ function BriefDetails({ ctx, onPatch }: { ctx: Ctx; onPatch: (j: Record<string, 
         </h2>
         <span className="font-mono text-[11px] text-ink-3">{fromModel ? `drafted by ${brief.method?.slice(6)}` : "built from your words"}</span>
       </div>
-      {brief.summary ? <p className="text-[15px] leading-relaxed text-ink-2">{brief.summary}</p> : null}
-
       {brief.questions?.length ? (
         <div>
-          <p className="mb-3 text-sm text-ink">A few answers would sharpen this</p>
           <div className="space-y-5">
             {brief.questions.map((q) => (
               <Answer key={q.id} q={q} onSave={(answer) => onPatch({ brief: { answers: { [q.id]: answer } } })} />
@@ -182,6 +164,13 @@ function BriefDetails({ ctx, onPatch }: { ctx: Ctx; onPatch: (j: Record<string, 
         </div>
       ) : null}
 
+      {fromModel || brief.ambiguities?.length || brief.assumptions?.length ? (
+      <details className="group">
+        <summary className="cursor-pointer list-none text-xs text-ink-3 hover:text-ink">
+          <span className="group-open:hidden">Show details</span>
+          <span className="hidden group-open:inline">Hide details</span>
+        </summary>
+        <div className="mt-6 space-y-8">
       {fromModel ? (
         <div className="grid gap-6 sm:grid-cols-2">
           {fields.map(([key, label]) => (
@@ -208,7 +197,7 @@ function BriefDetails({ ctx, onPatch }: { ctx: Ctx; onPatch: (j: Record<string, 
 
       {brief.assumptions?.length ? (
         <div>
-          <p className="mb-2 text-sm text-ink">Assumed, not asked</p>
+          <p className="mb-2 text-sm text-ink">Assumptions</p>
           <ul className="space-y-1.5 text-sm text-ink-2">
             {brief.assumptions.map((a, i) => (
               <li key={i} className="flex gap-2">
@@ -217,8 +206,10 @@ function BriefDetails({ ctx, onPatch }: { ctx: Ctx; onPatch: (j: Record<string, 
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-ink-3">If any of these are wrong, add a requirement that says otherwise.</p>
         </div>
+      ) : null}
+        </div>
+      </details>
       ) : null}
     </section>
   );
@@ -227,9 +218,11 @@ function BriefDetails({ ctx, onPatch }: { ctx: Ctx; onPatch: (j: Record<string, 
 function Answer({ q, onSave }: { q: { id: string; question: string; why: string; answer?: string }; onSave: (a: string) => void }) {
   const [v, setV] = useState(q.answer ?? "");
   return (
-    <Field label={q.question} hint={q.why}>
-      <input value={v} onChange={(e) => setV(e.target.value)} onBlur={() => v !== (q.answer ?? "") && onSave(v)} className="field-input" placeholder="Your answer" />
-    </Field>
+    <label className="field block" title={q.why}>
+      <span className="block text-sm text-ink-2">{q.question}</span>
+      <input value={v} onChange={(e) => setV(e.target.value)} onBlur={() => v !== (q.answer ?? "") && onSave(v)} className="field-input text-sm" placeholder="Answer (optional)" />
+      <span className="field-line" aria-hidden="true" />
+    </label>
   );
 }
 
@@ -282,7 +275,7 @@ function RequirementRow({ r, ctx }: { r: Requirement; ctx: Ctx }) {
         <Field label="Requirement">
           <textarea rows={2} value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} className="field-input" autoFocus />
         </Field>
-        <Field label="How to check it" hint="Observable and specific: what would you look at to say it's done?">
+        <Field label="Check">
           <input value={draft.acceptance} onChange={(e) => setDraft({ ...draft, acceptance: e.target.value })} className="field-input text-sm" />
         </Field>
         <div className="flex flex-wrap items-end gap-6">
@@ -317,10 +310,10 @@ function RequirementRow({ r, ctx }: { r: Requirement; ctx: Ctx }) {
       <span className={`mt-0.5 w-11 shrink-0 font-mono text-[11px] uppercase ${priorityTone}`}>{r.priority}</span>
       <div className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] sm:basis-auto">
         <p className={`text-sm leading-relaxed ${r.status === "rejected" ? "line-through" : "text-ink"}`}>{r.text}</p>
-        {r.acceptance ? <p className="mt-0.5 text-xs text-ink-3">Check: {r.acceptance}</p> : suggested || r.status === "rejected" ? null : <p className="mt-0.5 text-xs text-ink-3/70">No check defined yet.</p>}
+        {r.acceptance ? <p className="mt-0.5 text-xs text-ink-3">{r.acceptance}</p> : null}
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           <span className="tag">{r.category}</span>
-          {r.origin !== "explicit" || suggested ? (
+          {r.origin !== "explicit" ? (
             <span className={`tag ${r.origin !== "explicit" ? "suggested" : ""}`}>
               {r.origin !== "explicit" ? <Asterisk className="text-[9px] text-accent" /> : null}
               {ORIGIN_LABEL[r.origin] ?? r.origin}
@@ -394,10 +387,10 @@ function AddRequirement({ ctx }: { ctx: Ctx }) {
       }}
     >
       <Field label="Requirement">
-        <input value={text} onChange={(e) => setText(e.target.value)} required minLength={3} maxLength={500} className="field-input" placeholder="e.g. The contact form sends to my email" autoFocus />
+        <input value={text} onChange={(e) => setText(e.target.value)} required minLength={3} maxLength={500} className="field-input" placeholder="The contact form sends to my email" autoFocus />
       </Field>
-      <Field label="How to check it (optional)">
-        <input value={acceptance} onChange={(e) => setAcceptance(e.target.value)} maxLength={500} className="field-input text-sm" placeholder="e.g. Submitting the form shows a confirmation" />
+      <Field label="Check (optional)">
+        <input value={acceptance} onChange={(e) => setAcceptance(e.target.value)} maxLength={500} className="field-input text-sm" placeholder="A confirmation appears after submit" />
       </Field>
       <div className="flex flex-wrap items-end gap-6">
         <Field label="Priority">

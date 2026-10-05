@@ -43,7 +43,6 @@ export default async function SettingsPage() {
         <h1 className="font-mono text-2xl">
           <span className="text-ink-3">[</span> Settings <span className="text-ink-3">]</span>
         </h1>
-        <p className="mt-1 text-sm text-ink-3">Server configuration is read from environment variables; see README → Configuration.</p>
       </div>
 
       <section>

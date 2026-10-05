@@ -13,6 +13,7 @@ import { linkRequirements, ModelAuditSchema, modelFindings, untestedFindings, ty
 import { enforceStatus, type FindingDraft } from "@/lib/engines/audit/types";
 import { FINDING_STATUSES, SEVERITY_RANK, isFailing } from "@/lib/engines/taxonomy";
 import { getRequirements, logEvent, touchProject } from "@/lib/repo/projects";
+import { referenceBlocks } from "@/lib/services/artifacts";
 
 const AUDIT_SYSTEM = `You are the output intelligence engine of UPSHIFT. You evaluate an AI-generated artefact against the user's confirmed requirements.
 
@@ -22,6 +23,7 @@ Rules:
 - "partially_met" means some but not all of the requirement is satisfied; say which part is missing.
 - Recommendations must be minimal and targeted: fix the specific issue, preserve everything else. Never recommend a full redesign unless the requirement cannot be met otherwise.
 - Do not give an overall quality score.
+- If reference images are attached after the artefact, they show the look the user wants. Judge visual requirements against them and report clear inconsistencies (colour, type, layout, density) as additional issues. Do not confuse references with the artefact.
 - Some requirements were already settled by automated checks and are not listed; do not re-judge them.
 - additionalIssues: only significant problems a reviewer would flag (broken layout, unreadable text, visual artefacts, inconsistent styling, wrong content). Mark matters of taste as "suggestion".
 ${INJECTION_RULE}`;
@@ -205,6 +207,7 @@ async function evaluate(userId: string, goal: string, contentType: string, artif
           ].join("\n\n"),
         },
         ...modelContent,
+        ...(artifact.kind === "url" || artifact.kind === "image" ? await referenceBlocks(artifact.projectId, 3) : []),
       ],
     }).catch((err: unknown) => {
       // Keep every automated result; record why the model part is missing.

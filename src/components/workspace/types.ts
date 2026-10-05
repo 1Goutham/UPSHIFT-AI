@@ -1,4 +1,4 @@
-import type { Artifact, Evaluation, EventRow, Finding, Project, Prompt, Requirement } from "@/lib/db/schema";
+import type { Artifact, Evaluation, EventRow, Finding, Project, Prompt, ReferenceImage, Requirement } from "@/lib/db/schema";
 
 /** Workspace payload as the client sees it (dates may arrive as strings after a JSON reload). */
 export type WS = {
@@ -9,6 +9,7 @@ export type WS = {
   evaluations: Evaluation[];
   findings: Finding[];
   events: EventRow[];
+  references: ReferenceImage[];
 };
 
 export type Provider = { configured: boolean; model: string };

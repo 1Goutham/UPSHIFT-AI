@@ -38,11 +38,10 @@ export default async function ProjectsPage() {
           <h1 className="font-mono text-2xl">
             <span className="text-ink-3">[</span> Projects <span className="text-ink-3">]</span>
           </h1>
-          <p className="mt-1 text-sm text-ink-3">One project per thing you are trying to get an AI to make.</p>
         </div>
         {!provider.configured ? (
           <Link href="/app/settings" className="text-xs text-ink-3 underline decoration-line-strong underline-offset-4 hover:text-ink">
-            Model features off: no AI provider configured
+            model off
           </Link>
         ) : null}
       </div>
@@ -72,7 +71,7 @@ export default async function ProjectsPage() {
             ))}
           </ul>
         ) : (
-          <Empty title="No projects yet">Describe what you want an AI to make. You can paste the prompt you already used.</Empty>
+          <Empty title="No projects yet" />
         )}
       </section>
     </main>

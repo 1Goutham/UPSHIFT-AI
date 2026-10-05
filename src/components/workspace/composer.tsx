@@ -45,7 +45,7 @@ export function Composer({ ctx }: { ctx: Ctx }) {
   };
 
   const placeholder =
-    mode === "requirement" ? "Add a requirement, e.g. “The hero must load without animation on mobile”" : refineDisabled ? (provider.configured ? "Improve the prompt first" : "Refining needs a configured model") : "Tell UPSHIFT how to change the prompt";
+    mode === "requirement" ? "Add a requirement" : refineDisabled ? (provider.configured ? "Improve the prompt first" : "Needs a model") : "How should the prompt change?";
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 md:left-56 lg:pr-0">

@@ -6,6 +6,7 @@ import { ArrowRight, Plus } from "lucide-react";
 import { CONTENT_TYPES } from "@/lib/engines/taxonomy";
 import { api, ErrorNote, Field, Spinner } from "./ui";
 import { Dictate } from "./dictate";
+import { PendingReferences } from "./references";
 
 export function NewProject({ startOpen, playbooks }: { startOpen: boolean; playbooks: { id: string; name: string }[] }) {
   const router = useRouter();
@@ -13,6 +14,7 @@ export function NewProject({ startOpen, playbooks }: { startOpen: boolean; playb
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [goal, setGoal] = useState("");
+  const [refs, setRefs] = useState<File[]>([]);
 
   if (!open)
     return (
@@ -38,6 +40,12 @@ export function NewProject({ startOpen, playbooks }: { startOpen: boolean; playb
           playbookId: f.get("playbookId") || undefined,
         },
       });
+      if (refs.length) {
+        const fd = new FormData();
+        for (const f of refs) fd.append("file", f);
+        // The project exists either way; a failed image upload can be retried in the Brief.
+        await api(`/api/projects/${project.id}/references`, { method: "POST", body: fd }).catch(() => {});
+      }
       router.push(`/app/p/${project.id}`);
       router.refresh();
     } catch (err) {
@@ -55,10 +63,10 @@ export function NewProject({ startOpen, playbooks }: { startOpen: boolean; playb
         </button>
       </div>
       <div className="grid gap-6 md:grid-cols-3">
-        <Field label="Project name" className="md:col-span-1">
-          <input name="name" required maxLength={120} placeholder="Portfolio redesign" className="field-input" />
+        <Field label="Name" className="md:col-span-1">
+          <input name="name" required maxLength={120} className="field-input" />
         </Field>
-        <Field label="What are you making?">
+        <Field label="Type">
           <select name="contentType" defaultValue="website" className="field-input">
             {CONTENT_TYPES.map((c) => (
               <option key={c.id} value={c.id}>
@@ -67,24 +75,28 @@ export function NewProject({ startOpen, playbooks }: { startOpen: boolean; playb
             ))}
           </select>
         </Field>
-        <Field label="AI tool you'll use" hint="Optional. e.g. Lovable, v0, Cursor, Midjourney">
-          <input name="targetTool" maxLength={80} className="field-input" />
+        <Field label="AI tool (optional)">
+          <input name="targetTool" maxLength={80} className="field-input" placeholder="Lovable, v0, Cursor…" />
         </Field>
         <div className="md:col-span-3">
-          <Field label="What do you want to achieve?" hint="Plain words are fine. Who is it for, what should it do, what should it feel like.">
+          <Field label="Goal">
             <div className="flex items-end gap-2">
-              <textarea name="goal" rows={2} maxLength={4000} value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Make my portfolio premium, modern and interactive so recruiters remember it." className="field-input" />
+              <textarea name="goal" rows={2} maxLength={4000} value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="What should the AI help you make?" className="field-input" />
               <Dictate onText={(t) => setGoal((g) => (g ? `${g} ${t}` : t))} />
             </div>
           </Field>
         </div>
         <div className="md:col-span-3">
-          <Field label="Prompt you used or plan to use" hint="Optional. It is kept verbatim and never overwritten.">
+          <Field label="Your prompt (optional)">
             <textarea name="originalPrompt" rows={3} maxLength={20000} className="field-input font-mono text-[13px]" />
           </Field>
         </div>
+        <div className="md:col-span-3">
+          <p className="field-label">References (optional)</p>
+          <PendingReferences files={refs} onChange={setRefs} />
+        </div>
         {playbooks.length ? (
-          <Field label="Start from a playbook" hint="Copies its confirmed requirements and prompt.">
+          <Field label="Playbook">
             <select name="playbookId" defaultValue="" className="field-input">
               <option value="">None</option>
               {playbooks.map((p) => (

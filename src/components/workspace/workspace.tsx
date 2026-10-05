@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { BookmarkPlus, Download, MoreHorizontal, PanelRightClose, PanelRightOpen, Trash2 } from "lucide-react";
+import { BookmarkPlus, Download, MoreHorizontal, Trash2 } from "lucide-react";
 import { CONTENT_TYPES } from "@/lib/engines/taxonomy";
 import { api, Confirm, Spinner, useToast } from "../ui";
 import { BriefTab } from "./brief-tab";
@@ -27,7 +27,6 @@ export function Workspace({ initial, provider }: { initial: WS; provider: Provid
   const toast = useToast();
   const [ws, setWs] = useState<WS>(initial);
   const [tab, setTabState] = useState<Tab>("brief");
-  const [panel, setPanel] = useState(true);
   const [menu, setMenu] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -130,9 +129,6 @@ export function Workspace({ initial, provider }: { initial: WS; provider: Provid
             <button type="button" className="btn btn-quiet btn-sm" aria-label="More actions" aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
               <MoreHorizontal className="h-4 w-4" />
             </button>
-            <button type="button" className="btn btn-quiet btn-sm hidden lg:inline-flex" aria-label={panel ? "Hide guidance panel" : "Show guidance panel"} onClick={() => setPanel((v) => !v)}>
-              {panel ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-            </button>
             {menu ? (
               <div className="rise-in absolute right-0 top-10 z-20 w-56 rounded-md border border-line bg-raise p-1 shadow-xl" onMouseLeave={() => setMenu(false)}>
                 <button type="button" className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm text-ink-2 hover:bg-panel hover:text-ink" onClick={savePlaybook}>
@@ -156,23 +152,14 @@ export function Workspace({ initial, provider }: { initial: WS; provider: Provid
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <main className="min-w-0 flex-1 px-5 py-6 pb-36 md:px-8">
-          <div className="lg:hidden">
-            <NextStep ctx={ctx} compact />
-          </div>
+        <main className="mx-auto w-full min-w-0 max-w-5xl flex-1 px-5 py-6 pb-36 md:px-8">
+          <NextStep ctx={ctx} />
           {tab === "brief" ? <BriefTab ctx={ctx} /> : null}
           {tab === "prompt" ? <PromptTab ctx={ctx} /> : null}
           {tab === "outputs" ? <OutputsTab ctx={ctx} /> : null}
           {tab === "compare" ? <CompareTab ctx={ctx} /> : null}
           {tab === "history" ? <HistoryTab ctx={ctx} /> : null}
         </main>
-        {panel ? (
-          <aside className="hidden w-80 shrink-0 border-l border-line lg:block" aria-label="Guidance">
-            <div className="sticky top-0 max-h-dvh overflow-y-auto p-5 pb-36">
-              <NextStep ctx={ctx} />
-            </div>
-          </aside>
-        ) : null}
       </div>
 
       <Composer ctx={ctx} />
@@ -182,7 +169,7 @@ export function Workspace({ initial, provider }: { initial: WS; provider: Provid
         title="Delete this project?"
         body={
           <>
-            This permanently deletes <strong className="text-ink">{ws.project.name}</strong>, its requirements, prompts, {ws.artifacts.length} output version(s), audits and uploaded files. This cannot be undone.
+            <strong className="text-ink">{ws.project.name}</strong> and everything in it will be permanently deleted.
           </>
         }
         confirmLabel="Delete project"
@@ -210,7 +197,7 @@ function Tabs({ tab, setTab, counts }: { tab: Tab; setTab: (t: Tab) => void; cou
     if (el) setLine({ left: el.offsetLeft, width: el.offsetWidth });
   }, [tab]);
   const badge: Partial<Record<Tab, string>> = {
-    brief: counts.proposed ? `${counts.proposed} to review` : counts.brief ? String(counts.brief) : "",
+    brief: counts.proposed ? `${counts.proposed} new` : counts.brief ? String(counts.brief) : "",
     outputs: counts.outputs ? `v${counts.outputs}` : "",
   };
   return (

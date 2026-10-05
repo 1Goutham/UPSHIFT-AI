@@ -67,7 +67,7 @@ export function OutputsTab({ ctx }: { ctx: Ctx }) {
         ) : selected ? (
           <VersionDetail key={selected.id} ctx={ctx} artifact={selected} />
         ) : (
-          <Empty title="No outputs yet">Add what the AI produced: a live URL, a screenshot or image, or the text/code it wrote.</Empty>
+          <Empty title="No outputs yet" />
         )}
       </div>
     </div>
@@ -97,7 +97,19 @@ function AddOutput({ ctx, onAdded }: { ctx: Ctx; onAdded: (id: string) => void }
   const [error, setError] = useState("");
   const [drag, setDrag] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const confirmed = ws.requirements.filter((r) => r.status === "confirmed").length;
+
+  // Paste a screenshot anywhere while this form is open.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const img = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith("image/"));
+      if (!img) return;
+      e.preventDefault();
+      setMode("file");
+      setFile(new File([img], img.name && img.name !== "image.png" ? img.name : `pasted-${Date.now()}.png`, { type: img.type }));
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,9 +158,6 @@ function AddOutput({ ctx, onAdded }: { ctx: Ctx; onAdded: (id: string) => void }
   return (
     <form onSubmit={submit} onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={onDrop} className={`rounded-lg border p-5 transition-colors md:p-6 ${drag ? "border-accent bg-accent/5" : "border-line"}`}>
       <h2 className="text-base font-medium">Add version {ws.artifacts.length + 1}</h2>
-      <p className="mt-1 text-sm text-ink-3">
-        It will be audited against {confirmed ? `your ${confirmed} confirmed requirement${confirmed === 1 ? "" : "s"}` : "generic checks only (no confirmed requirements yet)"}.
-      </p>
 
       <div role="tablist" className="mt-5 flex flex-wrap gap-1">
         {MODES.map((m) => (
@@ -160,7 +169,7 @@ function AddOutput({ ctx, onAdded }: { ctx: Ctx; onAdded: (id: string) => void }
 
       <div className="mt-5">
         {mode === "url" ? (
-          <Field label="Public URL" hint="Must be publicly reachable. Private, local and internal addresses are refused.">
+          <Field label="URL">
             <input value={url} onChange={(e) => setUrl(e.target.value)} required inputMode="url" placeholder="https://my-site.vercel.app" className="field-input" autoFocus />
           </Field>
         ) : mode === "file" ? (
@@ -172,9 +181,8 @@ function AddOutput({ ctx, onAdded }: { ctx: Ctx; onAdded: (id: string) => void }
                   {file.name} <span className="text-ink-3">({(file.size / 1024).toFixed(0)} KB)</span>
                 </span>
               ) : (
-                <span>Drop a file here or choose one</span>
+                <span>Drop, paste or choose an image or file</span>
               )}
-              <span className="text-xs text-ink-3">Screenshots/images (PNG, JPEG, WebP, GIF up to 8 MB) or text/code files up to 512 KB</span>
             </button>
             <input ref={inputRef} type="file" className="sr-only" accept="image/png,image/jpeg,image/webp,image/gif,.txt,.md,.html,.htm,.css,.js,.jsx,.ts,.tsx,.json,.py,.vue,.svelte" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </div>
@@ -185,10 +193,10 @@ function AddOutput({ ctx, onAdded }: { ctx: Ctx; onAdded: (id: string) => void }
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <Field label="Label (optional)">
-          <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={120} className="field-input" placeholder={mode === "url" ? "Defaults to the domain" : "e.g. Lovable draft 2"} />
+          <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={120} className="field-input" placeholder="" />
         </Field>
-        <Field label="What changed / what's wrong (optional)">
-          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} className="field-input" placeholder="e.g. Applied the mobile fix" />
+        <Field label="Note (optional)">
+          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} className="field-input" placeholder="" />
         </Field>
       </div>
 
@@ -254,11 +262,11 @@ function VersionDetail({ ctx, artifact }: { ctx: Ctx; artifact: Artifact }) {
       {!evaluation ? (
         <Empty title="Not audited" action={<button className="btn btn-primary btn-sm" onClick={rerun}>Run audit</button>} />
       ) : evaluation.status === "running" ? (
-        <Running artifact={artifact} provider={ctx.provider.configured} since={evaluation.createdAt} />
+        <Running artifact={artifact} since={evaluation.createdAt} />
       ) : evaluation.status === "failed" ? (
         <ErrorNote message={`The audit could not finish: ${evaluation.error ?? "unknown error"}. Your output is saved; you can retry.`} onRetry={rerun} />
       ) : (
-        <Results ctx={ctx} artifact={artifact} evaluation={evaluation} findings={findings} />
+        <Results ctx={ctx} evaluation={evaluation} findings={findings} />
       )}
     </div>
   );
@@ -289,19 +297,13 @@ function ArtifactPreview({ projectId, artifact }: { projectId: string; artifact:
   return null;
 }
 
-function Running({ artifact, provider, since }: { artifact: Artifact; provider: boolean; since: Date | string }) {
+function Running({ artifact, since }: { artifact: Artifact; since: Date | string }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     const start = new Date(since).getTime();
     const t = setInterval(() => setElapsed(Math.max(0, Math.round((Date.now() - start) / 1000))), 1000);
     return () => clearInterval(t);
   }, [since]);
-  const steps =
-    artifact.kind === "url"
-      ? ["Fetching the page safely", "Markup checks", "Headless browser at 390px and 1440px", provider ? "Model review of requirements" : null]
-      : artifact.kind === "image"
-        ? ["Reading the image", provider ? "Model review of requirements" : null]
-        : ["Static checks", provider ? "Model review of requirements" : null];
   return (
     <div className="rounded-lg border border-line p-5" role="status" aria-live="polite">
       <div className="flex items-center gap-3">
@@ -312,12 +314,6 @@ function Running({ artifact, provider, since }: { artifact: Artifact; provider: 
       <div className="relative mt-4 h-px overflow-hidden bg-line">
         <span className="progress-scan absolute inset-y-0 w-1/3 bg-accent" />
       </div>
-      <ul className="mt-4 space-y-1 text-xs text-ink-3">
-        {steps.filter(Boolean).map((s) => (
-          <li key={s}>· {s}</li>
-        ))}
-      </ul>
-      <p className="mt-3 text-xs text-ink-3">You can leave this page; the audit keeps running and the result is saved.</p>
     </div>
   );
 }
@@ -328,10 +324,10 @@ function Running({ artifact, provider, since }: { artifact: Artifact; provider: 
 
 type Filter = "issues" | "requirements" | "checks" | "all";
 
-function Results({ ctx, artifact, evaluation, findings }: { ctx: Ctx; artifact: Artifact; evaluation: Evaluation; findings: Finding[] }) {
+function Results({ ctx, evaluation, findings }: { ctx: Ctx; evaluation: Evaluation; findings: Finding[] }) {
   const s = evaluation.summary;
   const failing = findings.filter((f) => isFailing(f.status));
-  const [filter, setFilter] = useState<Filter>(failing.length ? "issues" : "requirements");
+  const [filter, setFilter] = useState<Filter>(failing.length ? "issues" : findings.some((f) => f.checkKey.startsWith("req:")) ? "requirements" : "all");
   // Pre-select proven failures and serious likely issues, minus checks already folded into a requirement.
   const [selected, setSelected] = useState<Set<string>>(() => {
     const redundant = redundantCheckIds(findings);
@@ -355,25 +351,22 @@ function Results({ ctx, artifact, evaluation, findings }: { ctx: Ctx; artifact: 
     <div className="space-y-8">
       {/* Coverage */}
       <section aria-labelledby="cov-h">
-        <h3 id="cov-h" className="eyebrow mb-3">
-          Requirement coverage
+        <h3 id="cov-h" className="eyebrow mb-3" title="Counts confirmed requirements only. Not a measure of overall quality.">
+          Requirements
         </h3>
         {total ? (
           <>
             <p className="text-[15px] text-ink">
-              {cov.verified + cov.likely} of {total} requirements met
-              <span className="text-ink-3">
+              {cov.verified + cov.likely}/{total} met
+              <span className="text-ink-3" title={`${cov.verified} verified, ${cov.likely} judged by model`}>
                 {" "}
-                ({cov.verified} verified, {cov.likely} judged by model) · {cov.failing} failing · {cov.untested} not tested
+                · {cov.failing} failing · {cov.untested} untested
               </span>
             </p>
             <CoverageBar total={total} {...cov} />
-            <p className="mt-2 text-xs text-ink-3">
-              Counts your confirmed requirements only. It is not a measure of overall or creative quality.
-            </p>
           </>
         ) : (
-          <p className="text-sm text-ink-3">No confirmed requirements were set when this audit ran, so only generic checks are shown.</p>
+          <p className="text-sm text-ink-3">No confirmed requirements.</p>
         )}
       </section>
 
@@ -381,7 +374,7 @@ function Results({ ctx, artifact, evaluation, findings }: { ctx: Ctx; artifact: 
       {s.screenshots?.length ? (
         <section aria-labelledby="shots-h">
           <h3 id="shots-h" className="eyebrow mb-3">
-            Rendered in a real browser
+            Screenshots
           </h3>
           <div className="flex gap-4 overflow-x-auto pb-1">
             {[...s.screenshots].sort((a, b) => a.width - b.width).map((sh) => (
@@ -422,7 +415,6 @@ function Results({ ctx, artifact, evaluation, findings }: { ctx: Ctx; artifact: 
             ))}
           </div>
         </div>
-        <Legend />
         {shown.length ? (
           <ul className="mt-3 divide-y divide-line border-y border-line">
             {shown.map((f) => (
@@ -444,18 +436,20 @@ function Results({ ctx, artifact, evaluation, findings }: { ctx: Ctx; artifact: 
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-ink-3">{filter === "issues" ? "No failing checks or likely issues in this audit." : "Nothing here."}</p>
+          <p className="mt-3 text-sm text-ink-3">{filter === "issues" ? "No issues." : "Nothing here."}</p>
         )}
       </section>
 
-      {failing.length ? <CorrectionBuilder ctx={ctx} evaluation={evaluation} selected={[...selected].filter((id) => failing.some((f) => f.id === id))} artifact={artifact} /> : null}
+      {failing.length ? <CorrectionBuilder ctx={ctx} evaluation={evaluation} selected={[...selected].filter((id) => failing.some((f) => f.id === id))} /> : null}
 
       {/* How it was checked */}
-      <section aria-labelledby="how-h" className="grid gap-6 border-t border-line pt-6 md:grid-cols-2">
+      <details className="group border-t border-line pt-5">
+        <summary className="cursor-pointer list-none text-xs text-ink-3 hover:text-ink">
+          <span className="group-open:hidden">How this was checked</span>
+          <span className="hidden group-open:inline">Hide</span>
+        </summary>
+      <section aria-label="How this was checked" className="mt-4 grid gap-6 md:grid-cols-2">
         <div>
-          <h3 id="how-h" className="eyebrow mb-2">
-            How this was checked
-          </h3>
           <ul className="space-y-1.5 text-sm">
             {(s.methods ?? []).map((m) => (
               <li key={m.id} className="flex gap-2">
@@ -483,6 +477,7 @@ function Results({ ctx, artifact, evaluation, findings }: { ctx: Ctx; artifact: 
           </div>
         ) : null}
       </section>
+      </details>
     </div>
   );
 }
@@ -495,26 +490,6 @@ function CoverageBar({ total, verified, likely, failing, untested }: { total: nu
       <span className="h-full bg-[repeating-linear-gradient(135deg,var(--pass)_0_3px,transparent_3px_6px)]" style={{ width: seg(likely) }} />
       <span className="h-full bg-fail" style={{ width: seg(failing) }} />
       <span className="h-full" style={{ width: seg(untested) }} />
-    </div>
-  );
-}
-
-function Legend() {
-  const items = [
-    ["verified_pass", "Verified"],
-    ["likely_pass", "Model: met"],
-    ["verified_fail", "Verified fail"],
-    ["likely_issue", "Model: issue"],
-    ["subjective", "Opinion"],
-    ["not_tested", "Not tested"],
-  ] as const;
-  return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1">
-      {items.map(([s, l]) => (
-        <span key={s} className="inline-flex items-center gap-1.5 text-[11px] text-ink-3">
-          <StatusMark status={s} /> {l}
-        </span>
-      ))}
     </div>
   );
 }
@@ -552,7 +527,6 @@ function FindingRow({ f, ctx, selectable, selected, onToggle }: { f: Finding; ct
             <span className="text-sm text-ink">{f.title}</span>
             {f.checkKey.startsWith("req:") ? <span className="tag">requirement</span> : null}
           </span>
-          {!open && f.detail ? <span className="mt-0.5 block truncate text-xs text-ink-3">{f.detail}</span> : null}
         </button>
         <span className="flex shrink-0 items-center gap-2">
           {f.severity !== "info" ? <SeverityTag severity={f.severity} /> : null}
@@ -588,8 +562,7 @@ function FindingRow({ f, ctx, selectable, selected, onToggle }: { f: Finding; ct
       ) : null}
       {reviewable ? (
         <div className="ml-[3.25rem] mt-2 flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-ink-3">Checked it yourself?</span>
-          <button type="button" className="btn btn-quiet btn-sm" disabled={busy} onClick={() => review("verified_pass")}>
+          <button type="button" className="btn btn-quiet btn-sm" disabled={busy} onClick={() => review("verified_pass")} title="You checked it yourself">
             Met
           </button>
           <button type="button" className="btn btn-quiet btn-sm" disabled={busy} onClick={() => review("verified_fail")}>
@@ -601,7 +574,7 @@ function FindingRow({ f, ctx, selectable, selected, onToggle }: { f: Finding; ct
   );
 }
 
-function CorrectionBuilder({ ctx, evaluation, selected, artifact }: { ctx: Ctx; evaluation: Evaluation; selected: string[]; artifact: Artifact }) {
+function CorrectionBuilder({ ctx, evaluation, selected }: { ctx: Ctx; evaluation: Evaluation; selected: string[] }) {
   const [extra, setExtra] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -624,14 +597,11 @@ function CorrectionBuilder({ ctx, evaluation, selected, artifact }: { ctx: Ctx; 
   return (
     <section aria-labelledby="fix-h" className="rounded-lg border border-line bg-panel p-5">
       <h3 id="fix-h" className="flex items-center gap-2 text-base font-medium">
-        <Wand2 className="h-4 w-4 text-accent" aria-hidden /> Targeted correction
+        <Wand2 className="h-4 w-4 text-accent" aria-hidden /> Fix {selected.length} selected
       </h3>
-      <p className="mt-1 text-sm text-ink-3">
-        {selected.length} issue{selected.length === 1 ? "" : "s"} selected. The prompt fixes only these, lists what already works so it is preserved, and asks the tool to verify each fix.
-      </p>
       <div className="mt-4">
-        <Field label="Anything else to say (optional)">
-          <input value={extra} onChange={(e) => setExtra(e.target.value)} maxLength={2000} className="field-input" placeholder="e.g. Keep the current colour palette exactly" />
+        <Field label="Note (optional)">
+          <input value={extra} onChange={(e) => setExtra(e.target.value)} maxLength={2000} className="field-input" placeholder="e.g. Keep the colours exactly" />
         </Field>
       </div>
       {error ? (
@@ -648,9 +618,6 @@ function CorrectionBuilder({ ctx, evaluation, selected, artifact }: { ctx: Ctx; 
       {result ? (
         <div className="rise-in mt-4">
           <pre className="prompt-out max-h-80 overflow-auto rounded-md border border-line bg-bg p-4">{result.content}</pre>
-          <p className="mt-2 text-xs text-ink-3">
-            Saved under Prompt → Versions. Run it in {ctx.ws.project.targetTool || "your AI tool"}, then add the result as v{ctx.ws.artifacts.length + 1} to compare against v{artifact.version}.
-          </p>
         </div>
       ) : null}
     </section>

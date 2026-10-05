@@ -8,7 +8,7 @@ INTENT → STRATEGY → CONTEXT → EXECUTION → EVALUATION → IMPROVEMENT →
 
 UPSHIFT is not a chatbot or a prompt rewriter. A project carries one set of requirements through the whole loop:
 
-1. **Brief.** Your goal and original prompt become an editable brief with an acceptance checklist. Every suggestion is labelled *You said / Inferred / Assumption / Baseline* and only counts once you accept it.
+1. **Brief.** Your goal, original prompt and optional reference images (mockups, inspiration; drop, paste or pick) become an editable brief with an acceptance checklist. Every suggestion is labelled *You said / Inferred / Assumption / Baseline* and only counts once you accept it.
 2. **Prompt.** Rule-based checks show what the prompt is missing (with the reason each one fired). The improved prompt keeps your wording and decisions. Earlier versions are never overwritten.
 3. **Outputs.** Add the AI's result as a URL, an image or screenshot, or text/code. It is audited against the confirmed checklist with markup checks, a real headless browser at 390px and 1440px, and (when configured) a model review.
 4. **Correction.** Selected issues become a targeted correction prompt that lists what already works so it is preserved, and asks the tool to verify each fix.
@@ -109,6 +109,7 @@ Audits run after the response is sent (`after()`), record `running → complete 
 | Image and text/code audits (deterministic) | Implemented, e2e tested (image); unit tested (text/code) |
 | Model review of requirements (incl. screenshots and images) | Implemented; not live-tested |
 | Human verdicts on findings | Implemented, e2e tested |
+| Reference images (used in model brief + visual audit) | Upload/remove e2e tested; model use not live-tested |
 | Correction prompts, version compare, history, Markdown export | Implemented, e2e tested |
 | Playbooks, user-controlled memory, insights, usage and cost view | Implemented; manually exercised, light test coverage |
 | Voice | Browser dictation (Web Speech API) where supported, hidden otherwise. Real-time voice provider: **planned** |

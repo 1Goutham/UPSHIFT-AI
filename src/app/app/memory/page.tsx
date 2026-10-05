@@ -12,9 +12,7 @@ export default async function MemoryPage() {
       <h1 className="font-mono text-2xl">
         <span className="text-ink-3">[</span> Memory <span className="text-ink-3">]</span>
       </h1>
-      <p className="mt-1 max-w-xl text-sm text-ink-3">
-        Preferences UPSHIFT applies when it rewrites prompts with a model. Only what you write here is stored. Nothing is inferred from your activity, and you can edit or delete any of it.
-      </p>
+      <p className="mt-1 text-sm text-ink-3">Applied to model rewrites. Only what you add here is stored.</p>
       <div className="mt-8">
         <MemoryEditor initial={memories.map((m) => ({ id: m.id, kind: m.kind, content: m.content, source: m.source }))} />
       </div>

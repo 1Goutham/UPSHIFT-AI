@@ -41,7 +41,8 @@ export async function deleteProject(userId: string, projectId: string) {
   const db = await getDb();
   const files = await db.select({ key: schema.artifacts.storageKey }).from(schema.artifacts).where(eq(schema.artifacts.projectId, projectId));
   const evals = await db.select({ summary: schema.evaluations.summary }).from(schema.evaluations).where(eq(schema.evaluations.projectId, projectId));
-  const keys = [...files.map((f) => f.key), ...evals.flatMap((e) => (e.summary.screenshots ?? []).map((s) => s.key))].filter((k): k is string => !!k);
+  const refs = await db.select({ key: schema.referenceImages.storageKey }).from(schema.referenceImages).where(eq(schema.referenceImages.projectId, projectId));
+  const keys = [...files.map((f) => f.key), ...refs.map((r) => r.key), ...evals.flatMap((e) => (e.summary.screenshots ?? []).map((s) => s.key))].filter((k): k is string => !!k);
   await db.delete(schema.projects).where(and(eq(schema.projects.id, projectId), eq(schema.projects.userId, userId)));
   // Remove stored uploads and screenshots after the rows are gone.
   for (const k of keys) await deleteObject(k).catch(() => {});
@@ -70,18 +71,19 @@ export async function getRequirements(projectId: string) {
 export async function getWorkspace(userId: string, projectId: string) {
   const project = await requireProject(userId, projectId);
   const db = await getDb();
-  const [requirements, prompts, artifacts, evaluations, events] = await Promise.all([
+  const [requirements, prompts, artifacts, evaluations, events, references] = await Promise.all([
     getRequirements(projectId),
     db.select().from(schema.prompts).where(eq(schema.prompts.projectId, projectId)).orderBy(desc(schema.prompts.createdAt)),
     db.select().from(schema.artifacts).where(eq(schema.artifacts.projectId, projectId)).orderBy(desc(schema.artifacts.version)),
     db.select().from(schema.evaluations).where(eq(schema.evaluations.projectId, projectId)).orderBy(desc(schema.evaluations.createdAt)),
     db.select().from(schema.events).where(eq(schema.events.projectId, projectId)).orderBy(desc(schema.events.createdAt)).limit(80),
+    db.select().from(schema.referenceImages).where(eq(schema.referenceImages.projectId, projectId)).orderBy(asc(schema.referenceImages.createdAt)),
   ]);
   const evalIds = evaluations.map((e) => e.id);
   const findings = evalIds.length
     ? await db.select().from(schema.findings).where(inArray(schema.findings.evaluationId, evalIds)).orderBy(asc(schema.findings.position))
     : [];
-  return { project, requirements, prompts, artifacts, evaluations, findings, events };
+  return { project, requirements, prompts, artifacts, evaluations, findings, events, references };
 }
 
 export type Workspace = Awaited<ReturnType<typeof getWorkspace>>;

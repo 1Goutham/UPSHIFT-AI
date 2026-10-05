@@ -7,6 +7,7 @@ import { generateStructured, INJECTION_RULE, providerStatus, untrusted } from "@
 import { BriefSchema, deterministicBrief, type RequirementCandidate } from "@/lib/engines/intent";
 import { CONTENT_TYPES, type ContentType } from "@/lib/engines/taxonomy";
 import { getRequirements, logEvent, touchProject } from "@/lib/repo/projects";
+import { referenceBlocks } from "@/lib/services/artifacts";
 import type { Project } from "@/lib/db/schema";
 
 const SYSTEM = `You are the intent engine of UPSHIFT, a tool that helps people get better results from AI tools.
@@ -19,6 +20,7 @@ Rules:
 - Ask at most 3 clarifying questions, only when the answer would materially change the output. Otherwise state an assumption.
 - Flag contradictions in "ambiguities".
 - Keep the user's own wording where it is already precise.
+- If reference images are attached, describe the visual direction they show (layout, colour, type, density) in concrete terms and add visual requirements for it with origin "inferred".
 ${INJECTION_RULE}`;
 
 export async function generateBrief(userId: string, project: Project, opts: { prompt: string; useModel: boolean }) {
@@ -45,6 +47,7 @@ export async function generateBrief(userId: string, project: Project, opts: { pr
             untrusted("original prompt", opts.prompt || "(none given)"),
           ].join("\n\n"),
         },
+        ...(await referenceBlocks(project.id)),
       ],
       schema: BriefSchema,
     });

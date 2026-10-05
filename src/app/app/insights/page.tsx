@@ -13,7 +13,7 @@ export default async function InsightsPage() {
       <h1 className="font-mono text-2xl">
         <span className="text-ink-3">[</span> Insights <span className="text-ink-3">]</span>
       </h1>
-      <p className="mt-1 max-w-xl text-sm text-ink-3">Patterns across your own projects, counted directly from your prompts and audits. Small samples say little; treat these as prompts to reflect, not verdicts.</p>
+      <p className="mt-1 text-sm text-ink-3">Counted from your own prompts and audits.</p>
 
       {!data ? (
         <div className="mt-8">
@@ -39,8 +39,8 @@ export default async function InsightsPage() {
           </dl>
 
           <section>
-            <h2 className="eyebrow mb-1">Your most frequent prompt gaps</h2>
-            <p className="mb-4 text-xs text-ink-3">Share of your {data.totals.originals} original prompt(s) where each rule-based check fired.</p>
+            <h2 className="eyebrow mb-1">Frequent prompt gaps</h2>
+            <div className="mb-4" />
             {data.gaps.length ? (
               <ul className="space-y-5">
                 {data.gaps.slice(0, 6).map((g) => (
@@ -64,7 +64,7 @@ export default async function InsightsPage() {
           </section>
 
           <section>
-            <h2 className="eyebrow mb-4">Where outputs fail (latest audit of each version)</h2>
+            <h2 className="eyebrow mb-4">Where outputs fail</h2>
             {data.failingByCategory.length ? (
               <ul className="divide-y divide-line border-y border-line">
                 {data.failingByCategory.map(([cat, n]) => (
@@ -80,8 +80,8 @@ export default async function InsightsPage() {
           </section>
 
           <section>
-            <h2 className="eyebrow mb-1">Iteration results</h2>
-            <p className="mb-4 text-xs text-ink-3">Failing requirements in the first vs latest audited version of each project.</p>
+            <h2 className="eyebrow mb-1">First vs latest version (failing requirements)</h2>
+            <div className="mb-4" />
             {data.trajectories.length ? (
               <ul className="divide-y divide-line border-y border-line">
                 {data.trajectories.map((t) => (
@@ -97,7 +97,7 @@ export default async function InsightsPage() {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-ink-3">Needs at least one project with two audited versions.</p>
+              <p className="text-sm text-ink-3">Needs two audited versions.</p>
             )}
           </section>
         </div>

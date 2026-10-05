@@ -22,6 +22,8 @@ const LABEL: Record<string, (d: Record<string, unknown>) => string> = {
   "evaluation.failed": (d) => `Audit failed: ${d.error}`,
   "finding.reviewed": (d) => `You marked a finding as ${d.verdict === "verified_pass" ? "met" : "not met"} (was ${String(d.previous).replace("_", " ")})`,
   "correction.created": (d) => `Correction prompt for ${d.issues} issue(s) in v${d.version}`,
+  "reference.added": (d) => `Added reference image ${d.name ?? ""}`.trim(),
+  "reference.removed": (d) => `Removed reference image ${d.name ?? ""}`.trim(),
   "playbook.saved": (d) => `Saved as playbook (${d.requirements} requirements)`,
 };
 
@@ -39,7 +41,7 @@ export function HistoryTab({ ctx }: { ctx: Ctx }) {
           </li>
         ))}
       </ol>
-      <p className="mt-2 text-xs text-ink-3">Showing the latest {events.length} events. Earlier versions of prompts and outputs are never overwritten.</p>
+      
     </div>
   );
 }

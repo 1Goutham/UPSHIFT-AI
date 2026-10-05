@@ -10,11 +10,12 @@ const TYPES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", web
 export const GET = authed<{ id: string; key: string }>(async (_req, user, { id, key }) => {
   const project = await requireProject(user.id, id);
   const db = await getDb();
-  const [arts, evals] = await Promise.all([
+  const [arts, evals, refs] = await Promise.all([
     db.select({ k: schema.artifacts.storageKey }).from(schema.artifacts).where(eq(schema.artifacts.projectId, project.id)),
     db.select({ s: schema.evaluations.summary }).from(schema.evaluations).where(eq(schema.evaluations.projectId, project.id)),
+    db.select({ k: schema.referenceImages.storageKey }).from(schema.referenceImages).where(eq(schema.referenceImages.projectId, project.id)),
   ]);
-  const owned = new Set([...arts.map((a) => a.k), ...evals.flatMap((e) => (e.s.screenshots ?? []).map((s) => s.key))]);
+  const owned = new Set([...arts.map((a) => a.k), ...refs.map((r) => r.k), ...evals.flatMap((e) => (e.s.screenshots ?? []).map((s) => s.key))]);
   if (!owned.has(key)) throw new ApiError(404, "File not found.");
   const ext = key.split(".").pop() ?? "";
   const type = TYPES[ext];

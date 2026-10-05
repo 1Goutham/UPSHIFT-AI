@@ -14,9 +14,7 @@ export default async function PlaybooksPage() {
       <h1 className="font-mono text-2xl">
         <span className="text-ink-3">[</span> Playbooks <span className="text-ink-3">]</span>
       </h1>
-      <p className="mt-1 max-w-xl text-sm text-ink-3">
-        A playbook is a confirmed requirement set and prompt saved from a project that worked. Start a new project from one to skip the setup next time. Save one from a project&apos;s ··· menu.
-      </p>
+      <p className="mt-1 text-sm text-ink-3">Saved requirement sets. Save one from a project&apos;s ··· menu.</p>
       <div className="mt-8">
         <PlaybookList playbooks={playbooks.map((p) => ({ id: p.id, name: p.name, contentType: p.contentType, targetTool: p.targetTool, requirements: p.requirements, promptTemplate: p.promptTemplate, createdAt: p.createdAt.toISOString() }))} />
       </div>
