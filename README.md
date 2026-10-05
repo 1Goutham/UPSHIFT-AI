@@ -50,6 +50,16 @@ With no configuration, the app uses an embedded Postgres (PGlite under `.data/`)
 
 Migrations in `./drizzle` are applied automatically on first request. After changing `src/lib/db/schema.ts`, run `npm run db:generate`.
 
+## Deploying (Vercel + Neon)
+
+1. Import the repo in Vercel.
+2. **Storage → Neon**: or paste Neon's *pooled* connection string as `DATABASE_URL`. Tables are created on first request.
+3. **Storage → Blob**: connect a store; `BLOB_READ_WRITE_TOKEN` is added for you. Uploads and screenshots are stored privately and served only through authenticated routes.
+4. Set `XAI_API_KEY` (and optionally `XAI_MODEL`).
+5. Deploy, then open `/api/health`: it reports database, model and storage status.
+
+Browser checks use the bundled `@sparticuz/chromium` on Vercel; audit routes allow up to 300 s (`maxDuration`). Rate limits are stored in Postgres, so they hold across instances.
+
 ## Tests
 
 ```bash
@@ -110,19 +120,22 @@ Audits run after the response is sent (`after()`), record `running → complete 
 | Model review of requirements (incl. screenshots and images) | Implemented; not live-tested |
 | Human verdicts on findings | Implemented, e2e tested |
 | Reference images (used in model brief + visual audit) | Upload/remove e2e tested; model use not live-tested |
-| Correction prompts, version compare, history, Markdown export | Implemented, e2e tested |
+| Correction prompts, version compare (+ inline delta vs previous), history, Markdown export | Implemented, e2e tested |
+| Read-only share links (hashed, rotatable, revocable, noindex) | Implemented, e2e + unit tested |
+| Password change, account deletion | Implemented, e2e tested (change) |
 | Playbooks, user-controlled memory, insights, usage and cost view | Implemented; manually exercised, light test coverage |
 | Voice | Browser dictation (Web Speech API) where supported, hidden otherwise. Real-time voice provider: **planned** |
 | PDF/document parsing, multi-page crawling, interaction testing (clicks/forms) | **Planned** |
 | Strategy engine (model/tool recommendations), workflow builder | **Planned.** Not built rather than guessed, because it needs a maintained, sourced capability dataset |
 | Connected coding agents / design tools, team workspaces, developer API | **Planned** (P2) |
-| Cloud object storage, shared rate-limit store, job queue | Extension points in `storage.ts`, `ratelimit.ts`, `after()`; needed before multi-instance scale |
+| Vercel Blob storage, Postgres-backed rate limits, serverless Chromium | Implemented; Blob and serverless Chromium not yet exercised on a live Vercel deployment |
+| Password reset by email, OAuth sign-in | **Planned** (needs an email/OAuth provider) |
 
 ## Known limitations
 
 - Only the landing URL is loaded. Logged-in areas, other pages and interactions are not exercised, and audits say so.
 - The load-time figure is a single sample from the server, labelled as such. It is not a benchmark.
-- PGlite and in-memory rate limiting are single-process. Use `DATABASE_URL` and a shared store when scaling out.
+- PGlite is single-process; set `DATABASE_URL` for any deployment (it is required on Vercel).
 - Chromium in containers often needs `--no-sandbox` (`UPSHIFT_CHROMIUM_NO_SANDBOX=true`). Isolate the audit worker accordingly. WebSocket connections opened by audited pages are not filtered by the request guard.
 
 The brand name lives in `src/components/logo.tsx` and the app metadata, so it is easy to change.

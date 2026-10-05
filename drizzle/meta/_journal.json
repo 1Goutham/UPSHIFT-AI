@@ -15,6 +15,20 @@
       "when": 1791180635882,
       "tag": "0001_reference_images",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791181949732,
+      "tag": "0002_rate_hits",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791182031472,
+      "tag": "0003_shares",
+      "breakpoints": true
     }
   ]
 }

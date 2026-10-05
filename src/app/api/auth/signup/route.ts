@@ -16,7 +16,7 @@ const Body = z.object({
 export async function POST(req: Request) {
   try {
     assertSameOrigin(req);
-    limits.auth(req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local");
+    await limits.auth(req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local");
     const body = await parseBody(req, Body);
     const db = await getDb();
     const existing = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, body.email)).limit(1);

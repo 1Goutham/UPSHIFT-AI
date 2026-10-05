@@ -9,7 +9,7 @@ import { saveOriginalPrompt } from "@/lib/services/prompts";
 export const GET = authed(async (_req, user) => ({ projects: await listProjects(user.id) }));
 
 const Create = z.object({
-  name: z.string().trim().min(1).max(120),
+  name: z.string().trim().max(120).default(""),
   goal: z.string().max(4000).default(""),
   contentType: z.enum(CONTENT_TYPE_IDS).default("website"),
   targetTool: z.string().trim().max(80).default(""),
@@ -19,6 +19,7 @@ const Create = z.object({
 
 export const POST = authed(async (req, user) => {
   const body = await parseBody(req, Create);
+  if (!body.name) body.name = nameFrom(body.goal || body.originalPrompt) || "Untitled project";
   const db = await getDb();
   let playbook: typeof schema.playbooks.$inferSelect | undefined;
   if (body.playbookId) {
@@ -49,3 +50,10 @@ export const POST = authed(async (req, user) => {
   if (prompt) await saveOriginalPrompt(user.id, project, prompt);
   return { project };
 });
+
+/** A short name from the first words of the goal. */
+function nameFrom(text: string) {
+  const words = text.replace(/[^\p{L}\p{N}\s'-]/gu, " ").trim().split(/\s+/).filter(Boolean);
+  const name = words.slice(0, 6).join(" ");
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : "";
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { CATEGORIES, ORIGIN_LABEL, PRIORITIES } from "@/lib/engines/taxonomy";
 import type { Requirement } from "@/lib/db/schema";
@@ -48,6 +48,15 @@ export function BriefTab({ ctx }: { ctx: Ctx }) {
   };
 
   const hasBrief = !!brief.generatedAt;
+
+  // First open of a new project: build the brief straight away.
+  const auto = useRef(false);
+  useEffect(() => {
+    if (auto.current || hasBrief || ws.requirements.length || (!p.goal.trim() && !original)) return;
+    auto.current = true;
+    generate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="rise-in mx-auto max-w-3xl space-y-10">

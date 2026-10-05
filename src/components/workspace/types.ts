@@ -10,6 +10,7 @@ export type WS = {
   findings: Finding[];
   events: EventRow[];
   references: ReferenceImage[];
+  shared: boolean;
 };
 
 export type Provider = { configured: boolean; model: string };

@@ -5,6 +5,7 @@ import { ArrowUpRight, ChevronRight, FileText, Globe, Image as ImageIcon, Rotate
 import type { Artifact, Evaluation, Finding, Prompt } from "@/lib/db/schema";
 import { isFailing, isPassing } from "@/lib/engines/taxonomy";
 import { redundantCheckIds } from "@/lib/engines/improve";
+import { compareFindings } from "@/lib/engines/compare";
 import { api, Asterisk, CopyButton, Empty, ErrorNote, Field, MethodTag, SeverityTag, Spinner, StatusMark, useToast } from "../ui";
 import { fmtTime, latestEvaluation, type Ctx } from "./types";
 
@@ -87,8 +88,10 @@ function KindIcon({ kind }: { kind: string }) {
 
 function AddOutput({ ctx, onAdded }: { ctx: Ctx; onAdded: (id: string) => void }) {
   const { ws, reload } = ctx;
-  const [mode, setMode] = useState<"url" | "file" | "text" | "code">("url");
-  const [url, setUrl] = useState("");
+  // The next version usually lives where the last one did.
+  const last = ws.artifacts[0];
+  const [mode, setMode] = useState<"url" | "file" | "text" | "code">(!last || last.kind === "url" ? "url" : last.kind === "image" ? "file" : (last.kind as "text" | "code"));
+  const [url, setUrl] = useState(last?.kind === "url" ? (last.sourceUrl ?? "") : "");
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [label, setLabel] = useState("");
@@ -266,7 +269,7 @@ function VersionDetail({ ctx, artifact }: { ctx: Ctx; artifact: Artifact }) {
       ) : evaluation.status === "failed" ? (
         <ErrorNote message={`The audit could not finish: ${evaluation.error ?? "unknown error"}. Your output is saved; you can retry.`} onRetry={rerun} />
       ) : (
-        <Results ctx={ctx} evaluation={evaluation} findings={findings} />
+        <Results ctx={ctx} evaluation={evaluation} findings={findings} delta={<VersionDelta ctx={ctx} artifact={artifact} findings={findings} />} />
       )}
     </div>
   );
@@ -324,7 +327,7 @@ function Running({ artifact, since }: { artifact: Artifact; since: Date | string
 
 type Filter = "issues" | "requirements" | "checks" | "all";
 
-function Results({ ctx, evaluation, findings }: { ctx: Ctx; evaluation: Evaluation; findings: Finding[] }) {
+function Results({ ctx, evaluation, findings, delta }: { ctx: Ctx; evaluation: Evaluation; findings: Finding[]; delta?: React.ReactNode }) {
   const s = evaluation.summary;
   const failing = findings.filter((f) => isFailing(f.status));
   const [filter, setFilter] = useState<Filter>(failing.length ? "issues" : findings.some((f) => f.checkKey.startsWith("req:")) ? "requirements" : "all");
@@ -364,6 +367,7 @@ function Results({ ctx, evaluation, findings }: { ctx: Ctx; evaluation: Evaluati
               </span>
             </p>
             <CoverageBar total={total} {...cov} />
+            {delta}
           </>
         ) : (
           <p className="text-sm text-ink-3">No confirmed requirements.</p>
@@ -621,5 +625,29 @@ function CorrectionBuilder({ ctx, evaluation, selected }: { ctx: Ctx; evaluation
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** "vs v1: 5 improved · 1 regressed" against the previous audited version. */
+function VersionDelta({ ctx, artifact, findings }: { ctx: Ctx; artifact: Artifact; findings: Finding[] }) {
+  const { ws } = ctx;
+  const prev = ws.artifacts
+    .filter((a) => a.version < artifact.version)
+    .map((a) => ({ a, e: latestEvaluation(ws, a.id) }))
+    .find((x) => x.e?.status === "complete");
+  if (!prev) return null;
+  const { summary } = compareFindings(
+    ws.findings.filter((f) => f.evaluationId === prev.e!.id),
+    findings,
+  );
+  const up = summary.improved + summary.newly_tested;
+  const down = summary.regressed + summary.new_issue;
+  return (
+    <button type="button" onClick={() => ctx.setTab("compare")} className="mt-3 inline-flex items-center gap-3 font-mono text-xs text-ink-3 hover:text-ink">
+      vs v{prev.a.version}
+      <span className={up ? "text-pass" : ""}>↑ {up}</span>
+      <span className={down ? "text-fail" : ""}>↓ {down}</span>
+      <span>= {summary.still_failing} open</span>
+    </button>
   );
 }

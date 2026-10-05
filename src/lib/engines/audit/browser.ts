@@ -41,10 +41,19 @@ const VIEWPORTS = [
   { name: "desktop" as const, width: 1440, height: 900, isMobile: false },
 ];
 
-function chromiumPath(): string | undefined {
+const serverless = () => !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) || process.env.UPSHIFT_CHROMIUM === "sparticuz";
+
+/** Which Chromium to launch: explicit path, the serverless build, or Playwright's managed browser. */
+async function launchOptions(): Promise<{ executablePath?: string; args: string[] }> {
   const explicit = process.env.UPSHIFT_CHROMIUM_PATH;
-  if (explicit && fs.existsSync(explicit)) return explicit;
-  return undefined; // let playwright-core resolve its managed browser
+  if (explicit && fs.existsSync(explicit)) return { executablePath: explicit, args: process.env.UPSHIFT_CHROMIUM_NO_SANDBOX === "true" ? ["--no-sandbox"] : [] };
+  if (serverless()) {
+    // Brotli-packed Chromium built for serverless functions; unpacked to /tmp on first use.
+    const { default: Sparticuz } = await import("@sparticuz/chromium");
+    Sparticuz.setGraphicsMode = false;
+    return { executablePath: await Sparticuz.executablePath(), args: Sparticuz.args };
+  }
+  return { args: process.env.UPSHIFT_CHROMIUM_NO_SANDBOX === "true" ? ["--no-sandbox"] : [] };
 }
 
 export async function runBrowser(url: string): Promise<BrowserRun> {
@@ -60,13 +69,7 @@ export async function runBrowser(url: string): Promise<BrowserRun> {
 
   let browser: import("playwright-core").Browser;
   try {
-    browser = await chromium.launch({
-      executablePath: chromiumPath(),
-      headless: true,
-      timeout: 20_000,
-      // Containers commonly run as root, where Chromium's sandbox cannot start.
-      args: process.env.UPSHIFT_CHROMIUM_NO_SANDBOX === "true" ? ["--no-sandbox"] : [],
-    });
+    browser = await chromium.launch({ ...(await launchOptions()), headless: true, timeout: 30_000 });
   } catch (err) {
     return { ...empty, reason: `No usable Chromium found (${(err as Error).message.split("\n")[0]}). Set UPSHIFT_CHROMIUM_PATH.` };
   }

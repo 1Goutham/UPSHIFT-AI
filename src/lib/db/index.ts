@@ -27,12 +27,24 @@ async function connect(): Promise<DB> {
   const url = process.env.DATABASE_URL;
   if (url) {
     const { default: postgres } = await import("postgres");
-    const client = postgres(url, { max: 10, prepare: false });
+    // Serverless instances each hold a pool; keep it small and let the
+    // provider's pooler (e.g. Neon "-pooler" host) fan in.
+    const client = postgres(url, { max: process.env.VERCEL ? 3 : 10, idle_timeout: 20, prepare: false });
     const db = drizzlePostgres(client, { schema });
-    await migratePostgres(db, { migrationsFolder: MIGRATIONS });
+    try {
+      await migratePostgres(db, { migrationsFolder: MIGRATIONS });
+    } catch (err) {
+      // Two cold starts can race on the first deploy; the loser retries once
+      // and finds the migrations applied.
+      await new Promise((r) => setTimeout(r, 1500));
+      await migratePostgres(db, { migrationsFolder: MIGRATIONS }).catch(() => {
+        throw err;
+      });
+    }
     holder.driver = "postgres";
     return db;
   }
+  if (process.env.VERCEL) throw new Error("DATABASE_URL is required in serverless deployments (the embedded database cannot persist there).");
 
   const { PGlite } = await import("@electric-sql/pglite");
   const { drizzle: drizzlePglite } = await import("drizzle-orm/pglite");

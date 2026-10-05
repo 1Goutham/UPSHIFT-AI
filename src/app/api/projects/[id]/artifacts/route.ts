@@ -22,7 +22,7 @@ const Json = z.discriminatedUnion("kind", [
  */
 export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   const project = await requireProject(user.id, id);
-  limits.audit(user.id);
+  await limits.audit(user.id);
   const type = req.headers.get("content-type") ?? "";
   let artifact;
   if (type.startsWith("multipart/form-data")) {
@@ -43,3 +43,6 @@ export const POST = authed<{ id: string }>(async (req, user, { id }) => {
   after(() => runEvaluation(user.id, evaluation.id));
   return { artifact, evaluation };
 });
+
+// Audits continue after the response (after()); allow time for the browser and model.
+export const maxDuration = 300;

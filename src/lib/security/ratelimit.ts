@@ -1,25 +1,27 @@
 import "server-only";
+import { and, count, eq, gte, lt } from "drizzle-orm";
 import { ApiError } from "@/lib/api";
+import { getDb, schema } from "@/lib/db";
 
 /**
- * Fixed-window limiter kept in process memory. Good enough for a single
- * instance; replace with a shared store (Redis/Postgres) when scaling out.
+ * Sliding-window limiter stored in Postgres, so limits hold across
+ * serverless instances. Old hits are pruned opportunistically.
  */
-const buckets = new Map<string, number[]>();
-
-export function rateLimit(key: string, max: number, windowMs: number) {
-  const now = Date.now();
-  const recent = (buckets.get(key) ?? []).filter((t) => now - t < windowMs);
-  if (recent.length >= max) {
-    const wait = Math.ceil((windowMs - (now - recent[0])) / 1000);
-    throw new ApiError(429, `Too many requests. Try again in ${wait}s.`);
-  }
-  recent.push(now);
-  buckets.set(key, recent);
+export async function rateLimit(key: string, max: number, windowMs: number) {
+  const db = await getDb();
+  const since = new Date(Date.now() - windowMs);
+  const [{ n }] = await db
+    .select({ n: count() })
+    .from(schema.rateHits)
+    .where(and(eq(schema.rateHits.key, key), gte(schema.rateHits.at, since)));
+  if (n >= max) throw new ApiError(429, "Too many requests. Try again shortly.");
+  await db.insert(schema.rateHits).values({ key });
+  if (Math.random() < 0.02) await db.delete(schema.rateHits).where(lt(schema.rateHits.at, new Date(Date.now() - 24 * 3600_000)));
 }
 
 export const limits = {
-  auth: (ip: string) => rateLimit(`auth:${ip}`, 10, 10 * 60_000),
-  model: (userId: string) => rateLimit(`model:${userId}`, 40, 60 * 60_000),
+  auth: (ip: string) => rateLimit(`auth:${ip}`, Number(process.env.UPSHIFT_AUTH_RATE_LIMIT) || 10, 10 * 60_000),
+  model: (userId: string) => rateLimit(`model:${userId}`, 60, 60 * 60_000),
   audit: (userId: string) => rateLimit(`audit:${userId}`, 30, 60 * 60_000),
+  share: (ip: string) => rateLimit(`share:${ip}`, 120, 10 * 60_000),
 };

@@ -76,8 +76,7 @@ function selectedProvider(): ProviderId {
   if (explicit === "xai" || explicit === "grok") return "xai";
   if (explicit === "anthropic" || explicit === "claude") return "anthropic";
   if (process.env.ANTHROPIC_API_KEY) return "anthropic";
-  if (process.env.XAI_API_KEY) return "xai";
-  return "anthropic";
+  return "xai";
 }
 
 export function providerStatus(): ProviderStatus {

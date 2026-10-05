@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { BookmarkPlus, Download, MoreHorizontal, Trash2 } from "lucide-react";
+import { BookmarkPlus, Download, Link2, Link2Off, MoreHorizontal, Trash2 } from "lucide-react";
 import { CONTENT_TYPES } from "@/lib/engines/taxonomy";
 import { api, Confirm, Spinner, useToast } from "../ui";
 import { BriefTab } from "./brief-tab";
@@ -77,6 +77,44 @@ export function Workspace({ initial, provider }: { initial: WS; provider: Provid
     }
   };
 
+  const share = async (rotate: boolean) => {
+    setMenu(false);
+    try {
+      const { path } = await api<{ path: string }>(`/api/projects/${ws.project.id}/share`, { method: "POST" });
+      const link = `${window.location.origin}${path}`;
+      await navigator.clipboard.writeText(link).then(
+        () => toast(rotate ? "New link copied. The old one no longer works." : "Read-only link copied."),
+        () => window.prompt("Copy this link", link),
+      );
+      await reload();
+    } catch (err) {
+      toast((err as Error).message, "error");
+    }
+  };
+
+  const unshare = async () => {
+    setMenu(false);
+    try {
+      await api(`/api/projects/${ws.project.id}/share`, { method: "DELETE" });
+      toast("Link disabled.");
+      await reload();
+    } catch (err) {
+      toast((err as Error).message, "error");
+    }
+  };
+
+  // Number keys switch stages when you're not typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (e.metaKey || e.ctrlKey || e.altKey || t.closest("input, textarea, select, [contenteditable]")) return;
+      const i = Number(e.key) - 1;
+      if (i >= 0 && i < TABS.length) setTab(TABS[i].id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setTab]);
+
   const savePlaybook = async () => {
     setMenu(false);
     const name = window.prompt("Name this playbook", ws.project.name);
@@ -122,6 +160,7 @@ export function Workspace({ initial, provider }: { initial: WS; provider: Provid
             </div>
           </div>
           <div className="relative flex items-center gap-1">
+            {ws.shared ? <span className="mr-1 font-mono text-[11px] text-accent" title="A read-only link is active">shared</span> : null}
             <a href={`/api/projects/${ws.project.id}/export`} className="btn btn-quiet btn-sm" title="Export project as Markdown">
               <Download className="h-4 w-4" aria-hidden />
               <span className="hidden sm:inline">Export</span>
@@ -131,6 +170,14 @@ export function Workspace({ initial, provider }: { initial: WS; provider: Provid
             </button>
             {menu ? (
               <div className="rise-in absolute right-0 top-10 z-20 w-56 rounded-md border border-line bg-raise p-1 shadow-xl" onMouseLeave={() => setMenu(false)}>
+                <button type="button" className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm text-ink-2 hover:bg-panel hover:text-ink" onClick={() => share(ws.shared)}>
+                  <Link2 className="h-4 w-4" /> {ws.shared ? "New share link" : "Share report"}
+                </button>
+                {ws.shared ? (
+                  <button type="button" className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm text-ink-2 hover:bg-panel hover:text-ink" onClick={unshare}>
+                    <Link2Off className="h-4 w-4" /> Stop sharing
+                  </button>
+                ) : null}
                 <button type="button" className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm text-ink-2 hover:bg-panel hover:text-ink" onClick={savePlaybook}>
                   <BookmarkPlus className="h-4 w-4" /> Save as playbook
                 </button>

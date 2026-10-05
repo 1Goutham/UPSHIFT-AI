@@ -36,6 +36,7 @@ export default defineConfig({
         UPSHIFT_CHROMIUM_PATH: process.env.UPSHIFT_CHROMIUM_PATH ?? "",
         ANTHROPIC_API_KEY: "",
         XAI_API_KEY: "",
+        UPSHIFT_AUTH_RATE_LIMIT: "200",
         NEXT_TELEMETRY_DISABLED: "1",
       },
     },

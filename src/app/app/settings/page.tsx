@@ -3,6 +3,8 @@ import { currentUser } from "@/lib/auth/session";
 import { getDb, schema, dbDriver } from "@/lib/db";
 import { hasPricing, providerStatus } from "@/lib/ai/provider";
 import { DeleteAccount } from "@/components/delete-account";
+import { ChangePassword } from "@/components/change-password";
+import { storageBackend } from "@/lib/storage";
 
 export const metadata = { title: "Settings" };
 
@@ -32,9 +34,9 @@ export default async function SettingsPage() {
   const rows: [string, string, boolean | null][] = [
     ["AI provider", p.configured ? `${p.label} · ${p.model}` : "Not configured", p.configured],
     ...(p.provider === "anthropic" ? ([["Refusal fallback", p.fallbacks ? "Server-side fallback enabled" : "Off", null]] as [string, string, boolean | null][]) : []),
-    ["Database", dbDriver() === "postgres" ? "PostgreSQL (DATABASE_URL)" : "Embedded PGlite (.data/pglite) · single instance only", dbDriver() === "postgres"],
-    ["Browser checks", process.env.UPSHIFT_BROWSER === "off" ? "Disabled" : "Headless Chromium when available; each audit reports whether it ran", process.env.UPSHIFT_BROWSER !== "off"],
-    ["File storage", process.env.UPSHIFT_STORAGE_DIR ? `Local disk (${process.env.UPSHIFT_STORAGE_DIR})` : "Local disk (.data/uploads)", null],
+    ["Database", dbDriver() === "postgres" ? "PostgreSQL" : "Embedded (single instance)", dbDriver() === "postgres"],
+    ["Browser checks", process.env.UPSHIFT_BROWSER === "off" ? "Off" : "Headless Chromium", process.env.UPSHIFT_BROWSER !== "off"],
+    ["File storage", storageBackend() === "blob" ? "Vercel Blob (private)" : "Local disk", storageBackend() === "blob" || !process.env.VERCEL],
   ];
 
   return (
@@ -60,14 +62,14 @@ export default async function SettingsPage() {
         </dl>
         {!p.configured ? (
           <p className="mt-3 text-xs leading-relaxed text-ink-3">
-            To enable model-backed briefs, prompt rewrites and visual review, set <code className="font-mono text-ink-2">XAI_API_KEY</code> (Grok) or <code className="font-mono text-ink-2">ANTHROPIC_API_KEY</code> (Claude) on the server and restart. Keys are only read server-side and never sent to the browser.
+            Set <code className="font-mono text-ink-2">XAI_API_KEY</code> on the server to enable model features.
           </p>
         ) : null}
       </section>
 
       <section>
-        <h2 className="eyebrow mb-1">Model usage · last 30 days</h2>
-        <p className="mb-3 text-xs text-ink-3">Estimated from token counts and list prices; “—” means no price is configured for that model (for Grok, set XAI_PRICE_INPUT / XAI_PRICE_OUTPUT). Your provider invoice is authoritative.</p>
+        <h2 className="eyebrow mb-1">Usage · 30 days</h2>
+        <p className="mb-3 text-xs text-ink-3" title="Estimated from list prices. “—” means no price is configured (XAI_PRICE_INPUT / XAI_PRICE_OUTPUT).">Estimates</p>
         {usage.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -105,18 +107,15 @@ export default async function SettingsPage() {
             </table>
           </div>
         ) : (
-          <p className="text-sm text-ink-3">No model calls in the last 30 days.</p>
+          <p className="text-sm text-ink-3">No model calls yet.</p>
         )}
       </section>
 
       <section>
-        <h2 className="eyebrow mb-3">Data</h2>
-        <ul className="space-y-1.5 text-sm text-ink-2">
-          <li>Projects, prompts, audits and uploads are visible only to your account.</li>
-          <li>Deleting a project removes its rows and its stored files (uploads and screenshots).</li>
-          <li>When a model is configured, the material being analysed is sent to the provider for that request.</li>
-        </ul>
-        <div className="mt-6">
+        <h2 className="eyebrow mb-3">Account</h2>
+        <ChangePassword />
+        <p className="mt-8 text-xs text-ink-3">Your projects and files are private. Material you analyse is sent to the model provider for that request.</p>
+        <div className="mt-4">
           <DeleteAccount email={user.email} />
         </div>
       </section>

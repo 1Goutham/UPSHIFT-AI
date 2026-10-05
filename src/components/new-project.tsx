@@ -62,51 +62,67 @@ export function NewProject({ startOpen, playbooks }: { startOpen: boolean; playb
           Cancel
         </button>
       </div>
-      <div className="grid gap-6 md:grid-cols-3">
-        <Field label="Name" className="md:col-span-1">
-          <input name="name" required maxLength={120} className="field-input" />
+      <div className="space-y-6">
+        <label className="field block">
+          <span className="sr-only">Goal</span>
+          <div className="flex items-end gap-2">
+            <textarea
+              name="goal"
+              aria-label="Goal"
+              rows={2}
+              maxLength={4000}
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+              placeholder="What should the AI make?"
+              className="field-input text-lg"
+              autoFocus
+            />
+            <Dictate onText={(t) => setGoal((g) => (g ? `${g} ${t}` : t))} />
+          </div>
+          <span className="field-line" aria-hidden="true" />
+        </label>
+        <Field label="Your prompt (optional)">
+          <textarea name="originalPrompt" rows={2} maxLength={20000} className="field-input font-mono text-[13px]" />
         </Field>
-        <Field label="Type">
-          <select name="contentType" defaultValue="website" className="field-input">
-            {CONTENT_TYPES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="AI tool (optional)">
-          <input name="targetTool" maxLength={80} className="field-input" placeholder="Lovable, v0, Cursor…" />
-        </Field>
-        <div className="md:col-span-3">
-          <Field label="Goal">
-            <div className="flex items-end gap-2">
-              <textarea name="goal" rows={2} maxLength={4000} value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="What should the AI help you make?" className="field-input" />
-              <Dictate onText={(t) => setGoal((g) => (g ? `${g} ${t}` : t))} />
-            </div>
-          </Field>
-        </div>
-        <div className="md:col-span-3">
-          <Field label="Your prompt (optional)">
-            <textarea name="originalPrompt" rows={3} maxLength={20000} className="field-input font-mono text-[13px]" />
-          </Field>
-        </div>
-        <div className="md:col-span-3">
+        <div>
           <p className="field-label">References (optional)</p>
           <PendingReferences files={refs} onChange={setRefs} />
         </div>
-        {playbooks.length ? (
-          <Field label="Playbook">
-            <select name="playbookId" defaultValue="" className="field-input">
-              <option value="">None</option>
-              {playbooks.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-        ) : null}
+        <details className="group">
+          <summary className="cursor-pointer list-none text-xs text-ink-3 hover:text-ink">
+            <span className="group-open:hidden">More options</span>
+            <span className="hidden group-open:inline">Fewer options</span>
+          </summary>
+          <div className="mt-5 grid gap-6 md:grid-cols-3">
+            <Field label="Name">
+              <input name="name" maxLength={120} className="field-input" placeholder="From the goal" />
+            </Field>
+            <Field label="Type">
+              <select name="contentType" defaultValue="website" className="field-input">
+                {CONTENT_TYPES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="AI tool">
+              <input name="targetTool" maxLength={80} className="field-input" placeholder="Lovable, v0, Cursor…" />
+            </Field>
+            {playbooks.length ? (
+              <Field label="Playbook">
+                <select name="playbookId" defaultValue="" className="field-input">
+                  <option value="">None</option>
+                  {playbooks.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
+          </div>
+        </details>
       </div>
       {error ? (
         <div className="mt-5">
@@ -114,8 +130,8 @@ export function NewProject({ startOpen, playbooks }: { startOpen: boolean; playb
         </div>
       ) : null}
       <div className="mt-6 flex justify-end">
-        <button type="submit" disabled={busy} className="btn btn-primary group">
-          {busy ? <Spinner /> : null} Create project <ArrowRight className="nudge-x h-4 w-4" aria-hidden />
+        <button type="submit" disabled={busy || (!goal.trim() && !playbooks.length)} className="btn btn-primary group">
+          {busy ? <Spinner /> : null} Start <ArrowRight className="nudge-x h-4 w-4" aria-hidden />
         </button>
       </div>
     </form>

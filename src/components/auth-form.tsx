@@ -42,7 +42,6 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             <h1 className="font-mono text-2xl">
               <span className="text-ink-3">[</span> {signup ? "Create account" : "Sign in"} <span className="text-ink-3">]</span>
             </h1>
-            <p className="mt-2 text-sm text-ink-3">{signup ? "Projects, briefs and audit history are private to your account." : "Welcome back."}</p>
           </div>
           {signup ? (
             <Field label="Name">
@@ -52,8 +51,8 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           <Field label="Email">
             <input name="email" type="email" required autoComplete="email" className="field-input" />
           </Field>
-          <Field label="Password" hint={signup ? "At least 10 characters." : undefined}>
-            <input name="password" type="password" required minLength={signup ? 10 : 1} autoComplete={signup ? "new-password" : "current-password"} className="field-input" />
+          <Field label="Password">
+            <input name="password" type="password" required minLength={signup ? 10 : 1} autoComplete={signup ? "new-password" : "current-password"} className="field-input" placeholder={signup ? "10+ characters" : ""} />
           </Field>
           {error ? <ErrorNote message={error} /> : null}
           <button type="submit" disabled={busy} className="btn btn-primary group w-full">

@@ -7,7 +7,9 @@ import { ToastProvider } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: { default: "UPSHIFT AI", template: "%s · UPSHIFT AI" },
-  description: "Get more out of every AI. Turn vague intentions into clear briefs, stronger prompts and verified results.",
+  description: "Get more out of every AI. Sharper prompts, outputs checked against what you asked for.",
+  applicationName: "UPSHIFT",
+  openGraph: { title: "UPSHIFT AI", description: "Get more out of every AI.", type: "website" },
 };
 
 export const viewport: Viewport = {

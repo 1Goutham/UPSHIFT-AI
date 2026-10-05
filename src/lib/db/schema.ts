@@ -324,6 +324,31 @@ export const aiUsage = pgTable(
   (t) => [index("ai_usage_user_idx").on(t.userId, t.createdAt)],
 );
 
+/** Read-only public report links. Only a SHA-256 of the token is stored. */
+export const shares = pgTable(
+  "shares",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("shares_token_idx").on(t.tokenHash), index("shares_project_idx").on(t.projectId)],
+);
+
+/** Sliding-window rate limit hits, shared across server instances. */
+export const rateHits = pgTable(
+  "rate_hits",
+  {
+    id: id(),
+    key: text("key").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("rate_hits_key_at_idx").on(t.key, t.at)],
+);
+
 /** User-controlled memory. Nothing is written here without an explicit user action. */
 export const memories = pgTable(
   "memories",
