@@ -1,10 +1,12 @@
 import { lintPrompt } from "../../../src/lib/engines/prompt-lint";
 import { wordDiff } from "../../../src/lib/refine/intent-check";
+import { compressLocal, type Compression } from "../../../src/lib/tokens/compress";
+import { estimateTokens, formatTokens } from "../../../src/lib/tokens/estimate";
 import type { Mode } from "../../../src/lib/refine/platforms";
 import type { PlatformAdapter } from "../adapters/types";
 import { getSettings, saveSettings } from "../services/settings";
-import { REFINE_PORT, type Msg, type RefinePortMsg, type RefineReply, type RefineRequest, type RefineResult } from "../services/types";
-import { closeIcon, h, mark } from "../lib/dom";
+import { REFINE_PORT, type CompressReply, type Msg, type RefinePortMsg, type RefineReply, type RefineRequest, type RefineResult } from "../services/types";
+import { closeIcon, h, hammer } from "../lib/dom";
 import { CSS } from "./styles";
 
 declare const __DEV__: boolean;
@@ -19,7 +21,11 @@ type State =
   | { view: "analyse" }
   | { view: "loading"; partial?: string }
   | { view: "result"; result: RefineResult; original: string; replaced: boolean; editing: boolean; showDiff: boolean; note?: string }
-  | { view: "error"; message: string; connect?: boolean };
+  | { view: "error"; message: string; connect?: boolean }
+  | { view: "compressed"; c: CompressView; original: string; replaced: boolean; showDiff: boolean; busy?: boolean; note?: string };
+
+/** A compression to show: local (Compression) or from the server (CompressResult). */
+type CompressView = Pick<Compression, "text" | "before" | "after" | "saved" | "ratio"> & { check: { ok: boolean; issues: { kind: string; value: string }[] }; cut?: string[]; ai: boolean };
 
 const MODE_LABEL: Record<Mode, string> = { quick: "Quick", deep: "Deep", expert: "Expert" };
 const MODE_HINT: Record<Mode, string> = {
@@ -65,7 +71,7 @@ export class Overlay {
       this.shadow.append(h("style", {}, CSS));
     }
     this.shadow.append(this.root);
-    this.fab = h("button", { class: "fab", type: "button", "aria-label": "UPSHIFT: refine this prompt (Alt+U)", title: "UPSHIFT  (Alt+U)", onclick: () => this.onFabClick() }, mark(15), this.badge);
+    this.fab = h("button", { class: "fab", type: "button", "aria-label": "UPSHIFT: refine this prompt (Alt+U)", title: "Upshift AI  (Alt+U)", onclick: () => this.onFabClick() }, hammer(18), this.badge);
     this.fab.addEventListener("pointerdown", (e) => this.dragStart(e));
     this.fab.addEventListener("pointermove", (e) => this.dragMove(e));
     this.fab.addEventListener("pointerup", (e) => this.dragEnd(e));
@@ -304,7 +310,7 @@ export class Overlay {
       h(
         "div",
         { class: "head" },
-        h("span", { class: "brand" }, mark(14), h("span", {}, "UPSHIFT")),
+        h("span", { class: "brand" }, hammer(16), h("span", {}, "Upshift AI")),
         this.adapter.id === "other" ? null : h("span", { class: "plat" }, this.adapter.label),
         h("button", { class: "x", type: "button", "aria-label": "Close", onclick: () => this.close() }, closeIcon(10)),
       ),
@@ -335,6 +341,8 @@ export class Overlay {
         ];
       case "result":
         return this.result(this.state);
+      case "compressed":
+        return this.compressed(this.state);
       default:
         return this.analysis(true);
     }
@@ -346,7 +354,12 @@ export class Overlay {
     if (!text) return [h("p", { class: "title" }, "Write a prompt first"), h("p", { class: "muted" }, "UPSHIFT works on what's in the prompt box.")];
     const gaps = lintPrompt(text);
     const out: Node[] = [
-      h("p", { class: "title" }, gaps.length ? `${gaps.length} ${gaps.length === 1 ? "thing" : "things"} to clarify` : "Looks clear"),
+      h(
+        "div",
+        { class: "titlerow" },
+        h("p", { class: "title" }, gaps.length ? `${gaps.length} ${gaps.length === 1 ? "thing" : "things"} to clarify` : "Looks clear"),
+        h("span", { class: "pill tokens", title: "Approximate: each AI counts tokens slightly differently" }, `≈ ${formatTokens(estimateTokens(text))} tokens`),
+      ),
       gaps.length ? h("ul", { class: "gaps" }, ...gaps.map((g) => h("li", { title: g.detail }, g.label))) : h("p", { class: "muted" }, "Refining can still sharpen it."),
     ];
     if (!withAction) return out;
@@ -359,7 +372,12 @@ export class Overlay {
         ),
       ),
       h("p", { class: "muted small" }, MODE_HINT[this.mode]),
-      h("button", { class: "primary", type: "button", onclick: () => this.refine() }, "Refine"),
+      h(
+        "div",
+        { class: "actions" },
+        h("button", { class: "primary", type: "button", onclick: () => this.refine() }, "Refine"),
+        h("button", { class: "secondary", type: "button", title: "Same request, fewer tokens", onclick: () => this.compress() }, "Compress"),
+      ),
     );
     return out;
   }
@@ -505,6 +523,92 @@ export class Overlay {
     ].filter((n): n is HTMLDivElement | HTMLParagraphElement => !!n);
     if (parts.length) out.push(h("details", {}, h("summary", {}, "What changed"), h("div", { class: "whylist" }, ...parts)));
     return out;
+  }
+
+  /* ----------------------------- compression ---------------------------- */
+
+  /** Instant and local: nothing leaves the browser except, when connected, the two counts. */
+  private compress() {
+    const text = this.prompt();
+    if (!text) return this.update({ view: "analyse" });
+    const c = compressLocal(text);
+    if (c.saved > 0) chrome.runtime.sendMessage({ type: "token-event", platform: this.adapter.id, before: c.before, after: c.after } satisfies Msg).catch(() => {});
+    this.update({ view: "compressed", c: { ...c, ai: false }, original: text, replaced: false, showDiff: false });
+  }
+
+  private async compressMore(st: Extract<State, { view: "compressed" }>) {
+    this.update({ ...st, busy: true, note: undefined });
+    let reply: CompressReply;
+    try {
+      reply = await chrome.runtime.sendMessage({ type: "compress", prompt: st.original, platform: this.adapter.id } satisfies Msg);
+    } catch {
+      reply = { ok: false, code: "network", error: "Couldn't compress this prompt right now. Try again." };
+    }
+    if (this.state.view !== "compressed") return;
+    if (!reply?.ok) {
+      const r = reply as Extract<CompressReply, { ok: false }> | undefined;
+      if (r?.code === "not_connected" || r?.code === "no_permission" || r?.code === "auth") return this.update({ view: "error", message: r.error, connect: true });
+      return this.update({ ...st, busy: false, note: r?.error ?? "Couldn't compress this prompt right now. Try again." });
+    }
+    // The model's version only replaces the local one if it is actually shorter.
+    if (reply.result.after >= st.c.after) return this.update({ ...st, busy: false, note: "Already as short as it gets without losing anything." });
+    this.update({ view: "compressed", c: { ...reply.result, ai: true }, original: st.original, replaced: false, showDiff: false });
+  }
+
+  private compressed(st: Extract<State, { view: "compressed" }>): Node[] {
+    const c = st.c;
+    const lost = c.check.issues.filter((i) => i.kind !== "term");
+    const reworded = c.check.issues.filter((i) => i.kind === "term");
+    const out: Node[] = [
+      h(
+        "div",
+        { class: "titlerow" },
+        h("p", { class: "title" }, c.saved > 0 ? `${Math.round(c.ratio * 100)}% fewer tokens` : "Already lean"),
+        h("span", { class: `pill ${c.check.ok ? "ok" : "warn"}` }, c.check.ok ? "Nothing lost" : lost.length ? "Check this" : "Reworded"),
+      ),
+      h("p", { class: "muted small" }, `≈ ${formatTokens(c.before)} to ${formatTokens(c.after)} tokens${c.ai ? ", with AI" : ""}`),
+    ];
+    if (st.showDiff) {
+      const d = h("div", { class: "out diff", tabindex: 0, "aria-label": "Changes from your prompt" });
+      for (const part of wordDiff(st.original, c.text)) d.append(part.type === "same" ? document.createTextNode(part.text) : h("span", { class: part.type }, part.text));
+      out.push(d);
+    } else out.push(h("div", { class: "out", tabindex: 0, "aria-label": "Compressed prompt" }, c.text));
+    if (lost.length) out.push(h("p", { class: "note warn" }, `Missing: ${lost.map((i) => (i.kind === "negation" ? "a negation (don't, never)" : i.value)).join(", ")}`));
+    if (reworded.length) out.push(h("p", { class: "note" }, `No longer says: ${reworded.map((i) => i.value).join(", ")}`));
+    if (st.note) out.push(h("p", { class: "note", role: "status" }, st.note));
+    out.push(
+      h(
+        "div",
+        { class: "actions" },
+        st.replaced
+          ? h("button", { class: "secondary", type: "button", onclick: () => this.restore(st) }, "Undo")
+          : h("button", { class: "primary", type: "button", disabled: c.saved === 0, onclick: () => this.place(st) }, "Replace"),
+        h("button", { class: "secondary", type: "button", onclick: async () => this.update({ ...st, note: (await this.writeClipboard(c.text)) ? "Copied." : "This page blocked copying." }) }, "Copy"),
+      ),
+      h(
+        "div",
+        { class: "links" },
+        h("button", { type: "button", "aria-pressed": String(st.showDiff), onclick: () => this.update({ ...st, showDiff: !st.showDiff }) }, "Changes"),
+        c.ai ? null : h("button", { type: "button", disabled: !!st.busy, onclick: () => this.compressMore(st) }, st.busy ? "Compressing" : "Compress more"),
+        h("button", { type: "button", onclick: () => this.update({ view: "analyse" }) }, "Back"),
+      ),
+    );
+    if (c.cut?.length) out.push(h("p", { class: "muted small" }, `Removed: ${c.cut.join(", ")}`));
+    return out;
+  }
+
+  private async place(st: Extract<State, { view: "compressed" }>) {
+    const el = this.composer && this.composer.isConnected ? this.composer : this.adapter.findComposer(document);
+    const ok = el ? await this.adapter.write(el, st.c.text) : false;
+    if (ok) return this.update({ ...st, replaced: true, note: "Replaced in the prompt box." });
+    const copied = await this.writeClipboard(st.c.text);
+    this.update({ ...st, note: copied ? "Couldn't place it in the prompt box, so it's copied. Paste it in." : "Couldn't place it in the prompt box. Use Copy." });
+  }
+
+  private async restore(st: Extract<State, { view: "compressed" }>) {
+    const el = this.composer ?? this.adapter.findComposer(document);
+    const ok = el ? await this.adapter.write(el, st.original) : false;
+    this.update({ ...st, replaced: !ok, note: ok ? "Your original prompt is back." : "Couldn't restore it. Your original is under Changes." });
   }
 
   private update(next: State) {

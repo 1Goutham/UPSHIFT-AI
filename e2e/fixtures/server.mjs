@@ -28,6 +28,20 @@ function fakeCompletion(body) {
   const user = body.messages?.[1]?.content?.map?.((p) => p.text ?? "").join("\n") ?? "";
   const prompt = (user.match(/<untrusted_input source="user prompt">\n([\s\S]*?)\n<\/untrusted_input>/) ?? [])[1] ?? "";
   const name = body.response_format?.json_schema?.name ?? "";
+  if (name === "tokens_compress") {
+    // A terse rewrite that keeps every requirement (what a good model does).
+    const compressed = prompt
+      .replace(/^(hi|hello|hey)[!,.]*\s*/i, "")
+      .replace(/i would really appreciate it if you could /gi, "")
+      .replace(/(could|can) you (please )?/gi, "")
+      .replace(/\s*thanks[^.]*[.!]?\s*$/i, "")
+      .replace(/help me write/i, "Write")
+      .replace(/a professional email to my landlord about/i, "a professional email to my landlord on")
+      .replace(/^./, (c) => c.toUpperCase())
+      .trim();
+    const content = { compressed, cut: ["Greeting", "Politeness"] };
+    return { id: "fake", model: "fake-grok", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(content) } }], usage: { prompt_tokens: 40, completion_tokens: 30 } };
+  }
   const mode = name.split("_")[1] ?? "quick";
   const refined = `${prompt.replace(/cool/g, "high-contrast").replace(/some animations/g, "subtle scroll animations")}\n\nAudience: {{who it is for}}. Output: a single responsive page.`;
   const content = {

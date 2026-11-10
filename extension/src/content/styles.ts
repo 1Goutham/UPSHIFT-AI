@@ -73,6 +73,8 @@ textarea.out { outline: none; resize: vertical; box-shadow: inset 0 0 0 1.5px rg
 .diff .add { background: var(--addBg); border-radius: 3px; }
 .pill { font-size: 11.5px; font-weight: 500; padding: 3px 9px; border-radius: 999px; background: var(--fill2); white-space: pre; font-variant-numeric: tabular-nums; }
 .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); }
+.pill.tokens { color: var(--ink2); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; }
+.links button:disabled, .primary:disabled { opacity: .45; cursor: default; }
 .note { font-size: 12.5px; color: var(--ink2); }
 .note.warn { color: var(--warn); }
 

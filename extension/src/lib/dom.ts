@@ -18,7 +18,22 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Props = 
   return el;
 }
 
+import hammerPng from "../../icons/hammer-48.png";
+
 const SVG = "http://www.w3.org/2000/svg";
+
+/** The Upshift hammer, inlined as a data URL (no web-accessible resources needed). */
+export function hammer(size = 16): HTMLImageElement {
+  const img = document.createElement("img");
+  img.src = hammerPng;
+  img.alt = "";
+  img.width = size;
+  img.height = size;
+  img.draggable = false;
+  img.setAttribute("aria-hidden", "true");
+  img.style.cssText = `width:${size}px;height:${size}px;object-fit:contain;pointer-events:none;user-select:none`;
+  return img;
+}
 
 function icon(paths: string[], size: number, strokeWidth = 2): SVGSVGElement {
   const svg = document.createElementNS(SVG, "svg");

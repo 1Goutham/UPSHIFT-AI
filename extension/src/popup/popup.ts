@@ -1,4 +1,5 @@
-import { h, mark } from "../lib/dom";
+import { h, hammer } from "../lib/dom";
+import { formatTokens } from "../../../src/lib/tokens/estimate";
 import { getSettings, normaliseServer, saveSettings } from "../services/settings";
 import type { Settings } from "../services/types";
 
@@ -9,7 +10,7 @@ import type { Settings } from "../services/types";
 const app = document.getElementById("app")!;
 if (location.search.includes("page") || window.innerWidth > 500) document.body.classList.add("page");
 
-type Conn = { state: "idle" } | { state: "checking" } | { state: "ok"; name: string; refine: boolean } | { state: "error"; message: string };
+type Conn = { state: "idle" } | { state: "checking" } | { state: "ok"; name: string; refine: boolean; saved: number | null } | { state: "error"; message: string };
 let conn: Conn = { state: "idle" };
 let editing = false;
 
@@ -23,7 +24,8 @@ async function check(s: Settings): Promise<Conn> {
     const body = await res.json().catch(() => null);
     if (res.status === 401) return { state: "error", message: "That token no longer works. Create a new one." };
     if (!res.ok || typeof body?.name !== "string") return { state: "error", message: "That address isn't an UPSHIFT server." };
-    return { state: "ok", name: body.name, refine: body.refine === true };
+    const saved = typeof body.savedThisMonth === "number" && body.savedThisMonth >= 0 ? body.savedThisMonth : null;
+    return { state: "ok", name: body.name, refine: body.refine === true, saved };
   } catch {
     return { state: "error", message: "Couldn't reach the server." };
   }
@@ -62,7 +64,7 @@ async function disconnect() {
 
 async function render() {
   const s = await getSettings();
-  const nodes: (Node | null)[] = [h("div", { class: "brand" }, mark(15), "UPSHIFT")];
+  const nodes: (Node | null)[] = [h("div", { class: "brand" }, hammer(18), "Upshift AI")];
 
   if (conn.state === "ok" && !editing) {
     nodes.push(
@@ -72,6 +74,7 @@ async function render() {
         h("span", { class: "dot on" }),
         h("div", { class: "who" }, h("strong", {}, conn.name), h("small", {}, conn.refine ? "Connected" : "Connected. This server has no AI model set up.")),
       ),
+      conn.saved !== null ? h("div", { class: "card stat" }, h("span", {}, "Saved this month"), h("strong", {}, `≈ ${formatTokens(conn.saved)} tokens`)) : null,
       h(
         "div",
         { class: "row-c" },
@@ -128,7 +131,7 @@ async function render() {
     );
   }
 
-  nodes.push(h("p", { class: "fine" }, "Your prompt is only sent when you press Refine."));
+  nodes.push(h("p", { class: "fine" }, "Prompts are only sent when you press Refine or Compress more."));
   app.replaceChildren(...nodes.filter((n): n is Node => n !== null));
 }
 

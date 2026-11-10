@@ -4,6 +4,8 @@ import { getDb, schema } from "@/lib/db";
 import { refinePrompt } from "@/lib/refine/engine";
 import { MODES, PLATFORM_IDS } from "@/lib/refine/platforms";
 import { limits } from "@/lib/security/ratelimit";
+import { estimateTokens } from "@/lib/tokens/estimate";
+import { recordTokenEvent } from "@/lib/tokens/service";
 
 const Body = z.object({
   prompt: z.string().max(12_000),
@@ -21,6 +23,8 @@ type User = { id: string; isGuest: boolean };
 
 async function run(body: Input, user: User, onRefined?: (soFar: string) => void) {
   const result = await refinePrompt({ prompt: body.prompt, platform: body.platform, mode: body.mode, userId: user.id }, onRefined);
+  // Workload: refining usually adds tokens for clarity; record the counts (never the text).
+  await recordTokenEvent({ userId: user.id, method: "refine", platform: body.platform, source: body.source, before: estimateTokens(body.prompt.trim()), after: estimateTokens(result.refined) }).catch(() => {});
   let id: string | null = null;
   if (body.save && !user.isGuest) {
     const db = await getDb();

@@ -31,4 +31,6 @@ export const limits = {
   /** Model calls a guest can make before signing up (they cost real money). */
   guestModel: (userId: string) => rateLimit(`gmodel:${userId}`, 10, 24 * 60 * 60_000),
   hook: (projectId: string) => rateLimit(`hook:${projectId}`, 30, 60 * 60_000),
+  /** Token-count records (numbers only) from the extension and web. */
+  tokenEvent: (userId: string) => rateLimit(`tokev:${userId}`, 600, 60 * 60_000),
 };

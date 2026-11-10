@@ -1,6 +1,6 @@
 import { getSettings, normaliseServer } from "../services/settings";
-import { parseRefineResult } from "../services/validate";
-import { REFINE_PORT, type Msg, type RefinePortMsg, type RefineReply, type RefineRequest } from "../services/types";
+import { parseCompressResult, parseRefineResult } from "../services/validate";
+import { REFINE_PORT, type CompressReply, type Msg, type RefinePortMsg, type RefineReply, type RefineRequest } from "../services/types";
 
 /**
  * The only part of the extension that talks to the network, and only when
@@ -97,9 +97,57 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
-chrome.runtime.onMessage.addListener((msg: Msg, sender) => {
+/** Settings check shared by every server call. */
+async function server(): Promise<{ origin: string; token: string; saveHistory: boolean } | { error: CompressReply & { ok: false } }> {
+  const s = await getSettings();
+  const origin = normaliseServer(s.serverUrl);
+  if (!origin || !s.token) return { error: { ok: false, code: "not_connected", error: "Connect UPSHIFT to use this." } };
+  if (!(await chrome.permissions.contains({ origins: [`${origin}/*`] }))) return { error: { ok: false, code: "no_permission", error: "Allow UPSHIFT to reach your server in the extension settings." } };
+  return { origin, token: s.token, saveHistory: s.saveHistory };
+}
+
+async function compress(msg: Extract<Msg, { type: "compress" }>): Promise<CompressReply> {
+  const sv = await server();
+  if ("error" in sv) return sv.error;
+  let res: Response;
+  try {
+    res = await fetch(`${sv.origin}/api/tokens/compress`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${sv.token}` },
+      body: JSON.stringify({ prompt: msg.prompt, platform: msg.platform, source: "extension" }),
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch {
+    return { ok: false, code: "network", error: "Couldn't reach UPSHIFT. Check your connection and try again." };
+  }
+  const body = await res.json().catch(() => null);
+  if (res.status === 401) return { ok: false, code: "auth", error: "Your UPSHIFT connection expired. Reconnect in settings." };
+  if (!res.ok) return { ok: false, code: "provider", error: typeof body?.error === "string" ? body.error.slice(0, 200) : "Couldn't compress this prompt right now. Try again." };
+  const result = parseCompressResult(body);
+  return result ? { ok: true, result } : { ok: false, code: "invalid", error: "UPSHIFT returned something unexpected. Try again." };
+}
+
+/** Counts only, best effort: nothing is sent when not connected. */
+async function tokenEvent(msg: Extract<Msg, { type: "token-event" }>) {
+  const sv = await server();
+  if ("error" in sv) return;
+  const before = Math.max(0, Math.round(msg.before));
+  const after = Math.min(before, Math.max(0, Math.round(msg.after)));
+  await fetch(`${sv.origin}/api/tokens/events`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${sv.token}` },
+    body: JSON.stringify({ method: "compress-local", platform: msg.platform, source: "extension", before, after }),
+  }).catch(() => {});
+}
+
+chrome.runtime.onMessage.addListener((msg: Msg, sender, reply) => {
   if (sender.id !== chrome.runtime.id) return false;
   if (msg.type === "open-options") chrome.runtime.openOptionsPage();
+  if (msg.type === "token-event") void tokenEvent(msg);
+  if (msg.type === "compress") {
+    compress(msg).then(reply);
+    return true; // async reply
+  }
   return false;
 });
 

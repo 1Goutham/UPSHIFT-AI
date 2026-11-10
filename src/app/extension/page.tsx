@@ -8,7 +8,7 @@ export const metadata = { title: "Extension", description: "Analyse and refine p
 const STEPS = [
   ["Write", "Type your prompt in ChatGPT, Claude, Gemini or Grok as usual."],
   ["See the gaps", "The UPSHIFT button shows what's vague or missing, right in your browser."],
-  ["Refine", "Quick, Deep or Expert. Your intent is kept and checked, not rewritten."],
+  ["Refine or compress", "Sharpen it in Quick, Deep or Expert mode, or cut its tokens. Every change is checked against what you asked."],
   ["Use it", "Replace the prompt in place, or copy it. Undo any time."],
 ];
 
@@ -65,8 +65,8 @@ export default async function ExtensionPage() {
           <h2 className="eyebrow mb-3">Privacy</h2>
           <ul className="space-y-1.5 text-sm text-ink-2">
             <li>Runs only on ChatGPT, Claude, Gemini and Grok. Turn it off per site.</li>
-            <li>Gap analysis happens in your browser. Nothing is sent while you type.</li>
-            <li>Your prompt goes to your UPSHIFT server only when you click Refine.</li>
+            <li>Gap analysis, token counts and compression happen in your browser. Nothing is sent while you type.</li>
+            <li>Your prompt goes to your Upshift server only when you click Refine or Compress more. Token savings are recorded as counts, never text.</li>
             <li>History is off unless you turn it on. No access to any other site.</li>
           </ul>
         </section>

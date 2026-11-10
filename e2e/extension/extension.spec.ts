@@ -117,6 +117,60 @@ test("connect in the popup, then refine, replace and undo on ChatGPT", async () 
   await page.close();
 });
 
+test("compress: fewer tokens locally, nothing lost, replace and undo, then compress more with AI", async () => {
+  const page = await ctx.newPage();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("https://chatgpt.com/");
+  const original = "Hi! Could you please help me write a professional email to my landlord about the broken heating? I would really appreciate it if you could keep it polite but firm. Thanks in advance!";
+  await page.locator("#prompt-textarea").click();
+  await page.keyboard.insertText(original);
+  await fab(page).click();
+  await expect(panel(page).locator(".pill.tokens")).toHaveText(/≈ \d+ tokens/);
+  await panel(page).getByRole("button", { name: "Compress", exact: true }).click();
+  await expect(panel(page).locator(".title")).toHaveText(/\d+% fewer tokens/);
+  await expect(panel(page)).toContainText("Nothing lost");
+  await expect(panel(page).locator(".out")).toHaveText("Help me write a professional email to my landlord about the broken heating? Keep it polite but firm.");
+  await page.screenshot({ path: "test-results/shots/ext-compress.png" });
+
+  await panel(page).getByRole("button", { name: "Replace" }).click();
+  await expect(page.locator("#prompt-textarea")).toHaveText("Help me write a professional email to my landlord about the broken heating? Keep it polite but firm.");
+  await panel(page).getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator("#prompt-textarea")).toHaveText(original);
+
+  await panel(page).getByRole("button", { name: "Compress more" }).click();
+  await expect(panel(page)).toContainText("with AI");
+  await expect(panel(page).locator(".out")).toHaveText("Write a professional email to my landlord on the broken heating? keep it polite but firm.");
+  await expect(panel(page)).toContainText("Removed: Greeting, Politeness");
+
+  // The popup shows this month's savings (counts recorded for the local and AI compressions).
+  const popup = await ctx.newPage();
+  await popup.goto(`chrome-extension://${await extensionId()}/popup.html`);
+  await expect(popup.getByText("Saved this month")).toBeVisible();
+  await expect(popup.locator(".stat strong")).toHaveText(/≈ \d+ tokens/);
+  await popup.close();
+  await page.close();
+});
+
+test("web Tokens page: compress, compress more, and the month's workload", async () => {
+  const page = await ctx.newPage();
+  await page.goto(`${SERVER}/app/tokens`);
+  await page.getByRole("textbox", { name: "Prompt" }).fill("Hello! Could you please summarise this article for my team in 5 bullet points? Don't include opinions. Thanks!");
+  await expect(page.getByText(/≈ \d+ tokens/).first()).toBeVisible();
+  await page.getByRole("button", { name: "Compress", exact: true }).click();
+  await expect(page.getByText(/\d+% fewer tokens/)).toBeVisible();
+  await expect(page.getByText("Nothing lost")).toBeVisible();
+  await page.getByRole("button", { name: "Compress more" }).click();
+  // The model's version here is no shorter than the local one, so the page says so instead of claiming an AI win.
+  await expect(page.getByText("AI couldn't make it shorter without losing something.")).toBeVisible();
+  // Workload counts every compression this month, from both the extension and the web.
+  await expect(page.getByText("Saved this month").locator("..")).toContainText("≈");
+  const stats = await (await page.request.get(`${SERVER}/api/tokens/stats`)).json();
+  expect(stats.month.compressed).toBeGreaterThanOrEqual(3);
+  expect(stats.month.saved).toBeGreaterThan(0);
+  await page.screenshot({ path: "test-results/shots/web-tokens.png", fullPage: true });
+  await page.close();
+});
+
 test("comes back if the page redraws and removes it", async () => {
   const page = await ctx.newPage();
   await page.goto("https://chatgpt.com/");

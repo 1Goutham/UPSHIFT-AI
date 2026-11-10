@@ -29,6 +29,8 @@ const common = {
         (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : dev ? "http://localhost:3000" : "https://upshift-ai.vercel.app"),
     ),
   },
+  // Small images (the hammer mark) are inlined, so no web_accessible_resources are needed.
+  loader: { ".png": "dataurl" },
   logLevel: "warning",
 };
 await Promise.all([

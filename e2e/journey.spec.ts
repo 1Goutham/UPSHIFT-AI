@@ -251,7 +251,7 @@ test("password change keeps you signed in and the new password works", async ({ 
 test("free audit without an account, then save it by signing up", async ({ page }) => {
   await page.goto("/");
   await shot(page, "00-landing");
-  await page.getByLabel("Website URL").fill(`${FIXTURE}/v2`);
+  await page.getByLabel("Already built a site with AI?").fill(`${FIXTURE}/v2`);
   await page.getByRole("button", { name: "Audit" }).click();
   await expect(page).toHaveURL(/\/app\/p\/.*tab=outputs/, { timeout: 60_000 });
   await expect(page.getByText(/Auditing/).first()).toBeVisible();

@@ -6,10 +6,10 @@ import "./globals.css";
 import { ToastProvider } from "@/components/ui";
 
 export const metadata: Metadata = {
-  title: { default: "UPSHIFT AI", template: "%s · UPSHIFT AI" },
+  title: { default: "Upshift AI", template: "%s | Upshift AI" },
   description: "Get more out of every AI. Sharper prompts, outputs checked against what you asked for.",
-  applicationName: "UPSHIFT",
-  openGraph: { title: "UPSHIFT AI", description: "Get more out of every AI.", type: "website" },
+  applicationName: "Upshift AI",
+  openGraph: { title: "Upshift AI", description: "Get more out of every AI.", type: "website" },
 };
 
 export const viewport: Viewport = {

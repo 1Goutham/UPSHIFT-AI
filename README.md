@@ -1,4 +1,4 @@
-# UPSHIFT
+# Upshift AI
 
 **Get more out of every AI.** An intelligence layer for the AI tools you already use.
 
@@ -11,6 +11,16 @@ INTENT → PROMPT → UPSHIFT ANALYSIS → REFINED PROMPT → AI TOOL → OUTPUT
   - refines the prompt in Quick, Deep or Expert mode, keeping your intent and checking it;
   - replaces the prompt in place, or copies it.
 - **After it builds: the site audit.** Paste the URL of a site built with Lovable, v0, Bolt, Cursor, Replit or Claude Code. UPSHIFT checks it in a real browser against what you asked for, gives you the exact prompt to fix it, then checks whether the fix worked.
+
+## Tokens and workload
+
+Same request, fewer tokens. `src/lib/tokens/` is shared by the web app and the extension:
+
+- **Estimate** (`estimate.ts`): an approximate count with no tokenizer download, calibrated in tests against OpenAI's o200k tokenizer (within 15% per prompt and 6% overall on a varied corpus). Other models tokenize differently, so the UI always shows "≈".
+- **Local compression** (`compress.ts`): instant, in the browser. Removes only what carries no instruction (greetings, politeness wrappers, sign-offs, empty fillers, wordy phrases with exact equivalents, repeated sentences, extra whitespace). Code, URLs, quotes, numbers, `{{placeholders}}`, indentation and everything after a line ending in ":" (the material a prompt is about) are never touched.
+- **Preservation check** (`checkPreserved`): every number, URL, code span, quote and placeholder must survive, along with every meaningful term and at least as many negations ("don't", "never", "without"). Anything missing is shown, never hidden.
+- **Compress more** (`POST /api/tokens/compress`): a fast model rewrites tersely. Its version is used only if it is shorter than the local pass, and it goes through the same check. The response says whose version it is.
+- **Workload** (`/app/tokens`, `GET /api/tokens/stats`): tokens saved this month, compressions, average saving, tokens added by refining, a 30-day chart, a per-tool breakdown, and Upshift's own model use. Stored as counts only (`token_events`); prompt text is never stored for this.
 
 ## Browser extension
 

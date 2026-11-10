@@ -404,6 +404,30 @@ export const refinements = pgTable(
   (t) => [index("refinements_user_idx").on(t.userId, t.createdAt)],
 );
 
+/**
+ * Token workload: one row per refine or compression, counts only. Prompt text
+ * is never stored here (refinement history is separate and opt-in).
+ */
+export const tokenEvents = pgTable(
+  "token_events",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** compress-local | compress-ai | refine */
+    method: text("method").notNull(),
+    /** chatgpt | claude | gemini | grok | other */
+    platform: text("platform").notNull().default("other"),
+    /** extension | web */
+    source: text("source").notNull().default("web"),
+    tokensBefore: integer("tokens_before").notNull(),
+    tokensAfter: integer("tokens_after").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("token_events_user_idx").on(t.userId, t.createdAt)],
+);
+
 /** Sliding-window rate limit hits, shared across server instances. */
 export const rateHits = pgTable(
   "rate_hits",

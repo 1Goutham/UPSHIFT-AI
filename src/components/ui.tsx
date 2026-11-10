@@ -9,10 +9,11 @@ import { STATUS_HELP, STATUS_LABEL, type FindingStatus } from "@/lib/engines/tax
 /* ------------------------------------------------------------------ */
 
 /** The portfolio's asterisk, drawn so it renders the same everywhere. Marks AI suggestions. */
+/** Marks model-made items: a small dot (kept as `Asterisk` so existing call sites don't change). */
 export function Asterisk({ className = "" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true" className={`inline-block shrink-0 ${className}`}>
-      <path d="M12 2.5v19M2.5 12h19M5.3 5.3l13.4 13.4M18.7 5.3 5.3 18.7" />
+    <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" className={`inline-block shrink-0 ${className}`}>
+      <circle cx="12" cy="12" r="4.5" fill="currentColor" />
     </svg>
   );
 }
